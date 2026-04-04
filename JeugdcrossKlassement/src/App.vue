@@ -1,47 +1,859 @@
 <script setup>
-import HelloWorld from './components/HelloWorld.vue'
-import TheWelcome from './components/TheWelcome.vue'
+import { computed, markRaw, onMounted, ref, shallowRef } from 'vue'
+import { CATEGORY_ORDER } from './categories.js'
+import { createCrossId, getDatabase } from './db.js'
+import {
+  decodeTextFileFromArrayBuffer,
+  normalizeParticipantKey,
+  parseCrossResults,
+} from './parser.js'
+
+const db = shallowRef(null)
+const isLoading = ref(true)
+const errorMessage = ref('')
+const successMessage = ref('')
+
+const crosses = ref([])
+const results = ref([])
+const participantDecisions = ref([])
+
+const crossForm = ref({
+  name: '',
+  association: '',
+  date: '',
+})
+
+const defaultCrosses = [
+  {
+    name: '1e Jeugdcrosscompetitie Regio 1-5',
+    association: 'Castricum',
+    date: '2025-11-22',
+  },
+  {
+    name: '2e Jeugdcrosscompetitie AVW',
+    association: 'Wieringerwerf',
+    date: '2026-01-17',
+  },
+  {
+    name: '3e Crosscompetitie Poule Noord',
+    association: 'Heiloo',
+    date: '2026-02-07',
+  },
+]
+
+function resetMessages() {
+  errorMessage.value = ''
+  successMessage.value = ''
+}
+
+function formatDate(dateText) {
+  const date = new Date(dateText)
+  if (Number.isNaN(date.getTime())) {
+    return dateText
+  }
+  return date.toLocaleDateString('nl-NL')
+}
+
+function sanitizeForId(value) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase()
+}
+
+function canonicalAssociationKey(value) {
+  return normalizeParticipantKey(value || '')
+}
+
+function createGroupKey(category, association) {
+  return `${category}::${canonicalAssociationKey(association)}`
+}
+
+function sortedPair(left, right) {
+  return left < right ? [left, right] : [right, left]
+}
+
+function createDecisionId(category, associationKey, leftKey, rightKey) {
+  const [a, b] = sortedPair(leftKey, rightKey)
+  return `${sanitizeForId(category)}::${associationKey}::${a}::${b}`
+}
+
+function compactKey(value) {
+  return (value || '').replace(/\s+/g, '')
+}
+
+function levenshteinDistance(left, right) {
+  const a = compactKey(left)
+  const b = compactKey(right)
+
+  if (a === b) {
+    return 0
+  }
+
+  if (a.length === 0) {
+    return b.length
+  }
+
+  if (b.length === 0) {
+    return a.length
+  }
+
+  const matrix = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0))
+  for (let i = 0; i <= a.length; i += 1) {
+    matrix[i][0] = i
+  }
+  for (let j = 0; j <= b.length; j += 1) {
+    matrix[0][j] = j
+  }
+
+  for (let i = 1; i <= a.length; i += 1) {
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost,
+      )
+    }
+  }
+
+  return matrix[a.length][b.length]
+}
+
+function similarity(left, right) {
+  const a = compactKey(left)
+  const b = compactKey(right)
+  const maxLength = Math.max(a.length, b.length)
+  if (maxLength === 0) {
+    return 1
+  }
+  const distance = levenshteinDistance(a, b)
+  return 1 - distance / maxLength
+}
+
+async function refreshData() {
+  if (!db.value) {
+    return
+  }
+
+  const crossDocs = await db.value.crosses.find().sort({ date: 'asc' }).exec()
+  const resultDocs = await db.value.results.find().exec()
+  const decisionDocs = await db.value.participantDecisions.find().exec()
+
+  crosses.value = crossDocs.map((doc) => doc.toJSON())
+  results.value = resultDocs.map((doc) => doc.toJSON())
+  participantDecisions.value = decisionDocs.map((doc) => doc.toJSON())
+}
+
+async function ensureDefaultCrosses() {
+  const existing = await db.value.crosses.find().exec()
+  if (existing.length > 0) {
+    return
+  }
+
+  await db.value.crosses.bulkInsert(defaultCrosses.map((cross, index) => ({
+    id: `default-cross-${index + 1}`,
+    ...cross,
+    createdAt: new Date().toISOString(),
+  })))
+}
+
+async function init() {
+  try {
+    db.value = markRaw(await getDatabase())
+    await ensureDefaultCrosses()
+    await refreshData()
+  }
+  catch (error) {
+    errorMessage.value = `Initialisatie mislukt: ${error instanceof Error ? error.message : String(error)}`
+  }
+  finally {
+    isLoading.value = false
+  }
+}
+
+async function addCross() {
+  resetMessages()
+
+  if (!crossForm.value.name || !crossForm.value.association || !crossForm.value.date) {
+    errorMessage.value = 'Vul naam, vereniging en datum in.'
+    return
+  }
+
+  const newCross = {
+    id: createCrossId(),
+    name: crossForm.value.name.trim(),
+    association: crossForm.value.association.trim(),
+    date: crossForm.value.date,
+    createdAt: new Date().toISOString(),
+  }
+
+  await db.value.crosses.insert(newCross)
+  await refreshData()
+
+  crossForm.value = {
+    name: '',
+    association: '',
+    date: '',
+  }
+
+  successMessage.value = 'Cross toegevoegd.'
+}
+
+async function clearCrossResults(cross, showSuccessMessage = true) {
+  const docs = await db.value.results.find({ selector: { crossId: cross.id } }).exec()
+  if (docs.length === 0) {
+    if (showSuccessMessage) {
+      successMessage.value = `Geen uitslag gevonden voor ${cross.name}.`
+    }
+    return
+  }
+
+  await db.value.results.bulkRemove(docs.map((doc) => doc.id))
+  await refreshData()
+
+  if (showSuccessMessage) {
+    successMessage.value = `Uitslag verwijderd voor ${cross.name}.`
+  }
+}
+
+async function onFileSelected(event, cross) {
+  resetMessages()
+
+  const file = event.target.files?.[0]
+  if (!file) {
+    return
+  }
+
+  try {
+    const hasExisting = (await db.value.results.find({ selector: { crossId: cross.id } }).exec()).length > 0
+    if (hasExisting) {
+      const shouldReplace = window.confirm('Er bestaat al een uitslag voor deze cross. Wil je die vervangen?')
+      if (!shouldReplace) {
+        event.target.value = ''
+        return
+      }
+    }
+
+    const arrayBuffer = await file.arrayBuffer()
+    const text = decodeTextFileFromArrayBuffer(arrayBuffer)
+    const parsedEntries = parseCrossResults(text)
+
+    if (parsedEntries.length === 0) {
+      throw new Error('Geen herkenbare uitslagregels gevonden in dit bestand.')
+    }
+
+    await clearCrossResults(cross, false)
+
+    await db.value.results.bulkInsert(parsedEntries.map((entry, entryIndex) => ({
+      id: `${cross.id}::${sanitizeForId(entry.category)}::${entry.participantKey}::${entry.rank}::${entryIndex}`,
+      crossId: cross.id,
+      category: entry.category,
+      rank: entry.rank,
+      points: entry.points,
+      participantName: entry.name,
+      participantKey: entry.participantKey,
+      association: entry.association,
+      time: entry.time,
+    })))
+
+    await refreshData()
+    successMessage.value = `${parsedEntries.length} resultaten verwerkt voor ${cross.name}.`
+  }
+  catch (error) {
+    errorMessage.value = `Upload mislukt: ${error instanceof Error ? error.message : String(error)}`
+  }
+  finally {
+    event.target.value = ''
+  }
+}
+
+const resultCountPerCross = computed(() => {
+  const counts = new Map()
+  for (const result of results.value) {
+    const current = counts.get(result.crossId) || 0
+    counts.set(result.crossId, current + 1)
+  }
+  return counts
+})
+
+const decisionsById = computed(() => {
+  return new Map(participantDecisions.value.map((decision) => [decision.id, decision]))
+})
+
+const mergeResolution = computed(() => {
+  const groups = new Map()
+
+  for (const result of results.value) {
+    const associationKey = canonicalAssociationKey(result.association)
+    const groupKey = createGroupKey(result.category, associationKey)
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, {
+        category: result.category,
+        associationKey,
+        namesByKey: new Map(),
+        parent: new Map(),
+        sameDecisions: [],
+      })
+    }
+
+    const group = groups.get(groupKey)
+    if (!group.namesByKey.has(result.participantKey)) {
+      group.namesByKey.set(result.participantKey, new Map())
+    }
+    const nameCounter = group.namesByKey.get(result.participantKey)
+    const current = nameCounter.get(result.participantName) || 0
+    nameCounter.set(result.participantName, current + 1)
+    group.parent.set(result.participantKey, result.participantKey)
+  }
+
+  function find(parent, key) {
+    const p = parent.get(key)
+    if (!p || p === key) {
+      return key
+    }
+    const root = find(parent, p)
+    parent.set(key, root)
+    return root
+  }
+
+  function union(parent, left, right) {
+    const rootLeft = find(parent, left)
+    const rootRight = find(parent, right)
+    if (rootLeft !== rootRight) {
+      parent.set(rootRight, rootLeft)
+    }
+  }
+
+  for (const decision of participantDecisions.value) {
+    if (decision.decision !== 'same') {
+      continue
+    }
+
+    const groupKey = createGroupKey(decision.category, decision.associationKey)
+    const group = groups.get(groupKey)
+    if (!group) {
+      continue
+    }
+    if (!group.parent.has(decision.leftKey) || !group.parent.has(decision.rightKey)) {
+      continue
+    }
+
+    union(group.parent, decision.leftKey, decision.rightKey)
+    group.sameDecisions.push(decision)
+  }
+
+  const canonicalByGroup = new Map()
+
+  for (const [groupKey, group] of groups) {
+    const components = new Map()
+    for (const key of group.parent.keys()) {
+      const root = find(group.parent, key)
+      if (!components.has(root)) {
+        components.set(root, [])
+      }
+      components.get(root).push(key)
+    }
+
+    const mapForGroup = new Map()
+    for (const componentKeys of components.values()) {
+      componentKeys.sort()
+      let canonicalKey = componentKeys[0]
+      let canonicalName
+      let newestMatch = null
+
+      for (const decision of group.sameDecisions) {
+        if (
+          componentKeys.includes(decision.leftKey)
+          && componentKeys.includes(decision.rightKey)
+        ) {
+          if (!newestMatch || decision.updatedAt > newestMatch.updatedAt) {
+            newestMatch = decision
+          }
+        }
+      }
+
+      if (newestMatch?.canonicalKey && componentKeys.includes(newestMatch.canonicalKey)) {
+        canonicalKey = newestMatch.canonicalKey
+      }
+
+      if (newestMatch?.canonicalName) {
+        canonicalName = newestMatch.canonicalName
+      }
+      else {
+        const names = group.namesByKey.get(canonicalKey) || new Map()
+        const best = Array.from(names.entries()).sort((left, right) => right[1] - left[1])[0]
+        canonicalName = best ? best[0] : canonicalKey
+      }
+
+      for (const key of componentKeys) {
+        mapForGroup.set(key, {
+          canonicalKey,
+          canonicalName,
+        })
+      }
+    }
+
+    canonicalByGroup.set(groupKey, mapForGroup)
+  }
+
+  return canonicalByGroup
+})
+
+const pendingNameConflicts = computed(() => {
+  const participantsByGroup = new Map()
+  const pending = []
+
+  for (const result of results.value) {
+    const associationKey = canonicalAssociationKey(result.association)
+    const groupKey = createGroupKey(result.category, associationKey)
+    if (!participantsByGroup.has(groupKey)) {
+      participantsByGroup.set(groupKey, {
+        category: result.category,
+        associationKey,
+        association: result.association,
+        participants: new Map(),
+      })
+    }
+
+    const group = participantsByGroup.get(groupKey)
+    if (!group.participants.has(result.participantKey)) {
+      group.participants.set(result.participantKey, {
+        key: result.participantKey,
+        labelName: result.participantName,
+        count: 0,
+      })
+    }
+    const participant = group.participants.get(result.participantKey)
+    participant.count += 1
+  }
+
+  for (const group of participantsByGroup.values()) {
+    const participants = Array.from(group.participants.values())
+      .filter((item) => item.key.length >= 4)
+      .sort((left, right) => left.labelName.localeCompare(right.labelName, 'nl'))
+
+    for (let leftIndex = 0; leftIndex < participants.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < participants.length; rightIndex += 1) {
+        const left = participants[leftIndex]
+        const right = participants[rightIndex]
+        const score = similarity(left.key, right.key)
+        if (score < 0.75) {
+          continue
+        }
+
+        const decisionId = createDecisionId(group.category, group.associationKey, left.key, right.key)
+        if (decisionsById.value.has(decisionId)) {
+          continue
+        }
+
+        const groupMapping = mergeResolution.value.get(createGroupKey(group.category, group.associationKey))
+        const mappedLeft = groupMapping?.get(left.key)?.canonicalKey || left.key
+        const mappedRight = groupMapping?.get(right.key)?.canonicalKey || right.key
+        if (mappedLeft === mappedRight) {
+          continue
+        }
+
+        pending.push({
+          id: decisionId,
+          category: group.category,
+          association: group.association || '-',
+          associationKey: group.associationKey,
+          leftKey: left.key,
+          leftName: left.labelName,
+          rightKey: right.key,
+          rightName: right.labelName,
+          similarity: score,
+        })
+      }
+    }
+  }
+
+  return pending.sort((left, right) => right.similarity - left.similarity)
+})
+
+async function chooseSameParticipant(conflict, preferredSide) {
+  resetMessages()
+  const canonicalKey = preferredSide === 'left' ? conflict.leftKey : conflict.rightKey
+  const canonicalName = preferredSide === 'left' ? conflict.leftName : conflict.rightName
+
+  await db.value.participantDecisions.upsert({
+    id: conflict.id,
+    category: conflict.category,
+    associationKey: conflict.associationKey,
+    leftKey: conflict.leftKey,
+    rightKey: conflict.rightKey,
+    decision: 'same',
+    canonicalKey,
+    canonicalName,
+    updatedAt: new Date().toISOString(),
+  })
+
+  await refreshData()
+  successMessage.value = `Samengevoegd als dezelfde deelnemer: ${canonicalName}.`
+}
+
+async function chooseDifferentParticipants(conflict) {
+  resetMessages()
+  await db.value.participantDecisions.upsert({
+    id: conflict.id,
+    category: conflict.category,
+    associationKey: conflict.associationKey,
+    leftKey: conflict.leftKey,
+    rightKey: conflict.rightKey,
+    decision: 'different',
+    canonicalKey: '',
+    canonicalName: '',
+    updatedAt: new Date().toISOString(),
+  })
+
+  await refreshData()
+  successMessage.value = 'Gemarkeerd als aparte deelnemers.'
+}
+
+const standingsPerCategory = computed(() => {
+  const byCategory = new Map()
+  for (const category of CATEGORY_ORDER) {
+    byCategory.set(category, new Map())
+  }
+
+  const crossIndex = new Map(crosses.value.map((cross, index) => [cross.id, index]))
+
+  for (const result of results.value) {
+    if (!byCategory.has(result.category)) {
+      continue
+    }
+
+    const associationKey = canonicalAssociationKey(result.association)
+    const groupKey = createGroupKey(result.category, associationKey)
+    const groupMapping = mergeResolution.value.get(groupKey)
+    const mapping = groupMapping?.get(result.participantKey)
+
+    const participantKey = mapping?.canonicalKey || result.participantKey
+    const participantName = mapping?.canonicalName || result.participantName
+
+    const categoryMap = byCategory.get(result.category)
+    const crossPosition = crossIndex.get(result.crossId)
+    if (crossPosition === undefined) {
+      continue
+    }
+
+    const rowKey = `${participantKey}::${associationKey}`
+    if (!categoryMap.has(rowKey)) {
+      categoryMap.set(rowKey, {
+        participantKey: rowKey,
+        participantName,
+        association: result.association,
+        pointsPerCross: Array(crosses.value.length).fill(null),
+        total: 0,
+      })
+    }
+
+    const participantRow = categoryMap.get(rowKey)
+    participantRow.participantName = participantName || participantRow.participantName
+    participantRow.association = participantRow.association || result.association
+    participantRow.pointsPerCross[crossPosition] = result.points
+    participantRow.total += result.points
+  }
+
+  const rowsByCategory = new Map()
+  for (const [category, participants] of byCategory) {
+    const rows = Array.from(participants.values())
+    rows.sort((left, right) => {
+      if (left.total !== right.total) {
+        return left.total - right.total
+      }
+      const leftStarts = left.pointsPerCross.filter((value) => value !== null).length
+      const rightStarts = right.pointsPerCross.filter((value) => value !== null).length
+      if (leftStarts !== rightStarts) {
+        return rightStarts - leftStarts
+      }
+      return left.participantName.localeCompare(right.participantName, 'nl')
+    })
+    rowsByCategory.set(category, rows)
+  }
+
+  return rowsByCategory
+})
+
+onMounted(() => {
+  init()
+})
 </script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="./assets/logo.svg" width="125" height="125" />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
+  <main class="container py-4 py-md-5">
+    <div class="d-flex flex-column gap-2 mb-4">
+      <h1 class="h3 mb-0">
+        Jeugdcross Klassement
+      </h1>
+      <p class="text-secondary mb-0">
+        Individueel klassement op basis van punten per cross (1e plaats = 1 punt).
+      </p>
     </div>
-  </header>
 
-  <main>
-    <TheWelcome />
+    <div
+      v-if="isLoading"
+      class="alert alert-info"
+    >
+      Gegevens worden geladen...
+    </div>
+
+    <template v-else>
+      <div
+        v-if="errorMessage"
+        class="alert alert-danger"
+      >
+        {{ errorMessage }}
+      </div>
+      <div
+        v-if="successMessage"
+        class="alert alert-success"
+      >
+        {{ successMessage }}
+      </div>
+
+      <section class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h2 class="h5 mb-3">
+            Cross Toevoegen
+          </h2>
+          <form
+            class="row g-2"
+            @submit.prevent="addCross"
+          >
+            <div class="col-md-4">
+              <input
+                v-model="crossForm.name"
+                class="form-control"
+                type="text"
+                placeholder="Naam cross"
+                required
+              >
+            </div>
+            <div class="col-md-4">
+              <input
+                v-model="crossForm.association"
+                class="form-control"
+                type="text"
+                placeholder="Vereniging"
+                required
+              >
+            </div>
+            <div class="col-md-3">
+              <input
+                v-model="crossForm.date"
+                class="form-control"
+                type="date"
+                required
+              >
+            </div>
+            <div class="col-md-1 d-grid">
+              <button
+                class="btn btn-primary"
+                type="submit"
+              >
+                Voeg toe
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h2 class="h5 mb-3">
+            Crossbeheer & Uploads
+          </h2>
+
+          <div
+            v-if="crosses.length === 0"
+            class="text-secondary"
+          >
+            Nog geen crossen aangemaakt.
+          </div>
+
+          <div
+            v-else
+            class="table-responsive"
+          >
+            <table class="table align-middle">
+              <thead>
+                <tr>
+                  <th>Naam</th>
+                  <th>Vereniging</th>
+                  <th>Datum</th>
+                  <th>Resultaten</th>
+                  <th>Acties</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="cross in crosses"
+                  :key="cross.id"
+                >
+                  <td>{{ cross.name }}</td>
+                  <td>{{ cross.association }}</td>
+                  <td>{{ formatDate(cross.date) }}</td>
+                  <td>{{ resultCountPerCross.get(cross.id) || 0 }}</td>
+                  <td>
+                    <div class="d-flex flex-wrap gap-2">
+                      <label class="btn btn-sm btn-outline-primary mb-0">
+                        Upload uitslag
+                        <input
+                          class="d-none"
+                          type="file"
+                          accept=".txt,text/plain"
+                          @change="(event) => onFileSelected(event, cross)"
+                        >
+                      </label>
+                      <button
+                        class="btn btn-sm btn-outline-danger"
+                        type="button"
+                        @click="clearCrossResults(cross)"
+                      >
+                        Verwijder uitslag
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h2 class="h5 mb-3">
+            Naamconflicten
+          </h2>
+          <p class="text-secondary mb-3">
+            Vergelijkbare namen binnen dezelfde categorie en vereniging. Kies of dit dezelfde deelnemer is of niet.
+          </p>
+
+          <div
+            v-if="pendingNameConflicts.length === 0"
+            class="text-secondary"
+          >
+            Geen open naamconflicten gevonden.
+          </div>
+
+          <div
+            v-else
+            class="table-responsive"
+          >
+            <table class="table table-sm align-middle">
+              <thead>
+                <tr>
+                  <th>Categorie</th>
+                  <th>Vereniging</th>
+                  <th>Naam A</th>
+                  <th>Naam B</th>
+                  <th>Gelijkenis</th>
+                  <th>Actie</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="conflict in pendingNameConflicts"
+                  :key="conflict.id"
+                >
+                  <td>{{ conflict.category }}</td>
+                  <td>{{ conflict.association }}</td>
+                  <td>{{ conflict.leftName }}</td>
+                  <td>{{ conflict.rightName }}</td>
+                  <td>{{ Math.round(conflict.similarity * 100) }}%</td>
+                  <td>
+                    <div class="d-flex flex-wrap gap-2">
+                      <button
+                        class="btn btn-sm btn-outline-success"
+                        type="button"
+                        @click="chooseSameParticipant(conflict, 'left')"
+                      >
+                        Zelfde als {{ conflict.leftName }}
+                      </button>
+                      <button
+                        class="btn btn-sm btn-outline-success"
+                        type="button"
+                        @click="chooseSameParticipant(conflict, 'right')"
+                      >
+                        Zelfde als {{ conflict.rightName }}
+                      </button>
+                      <button
+                        class="btn btn-sm btn-outline-secondary"
+                        type="button"
+                        @click="chooseDifferentParticipants(conflict)"
+                      >
+                        Aparte deelnemers
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="d-flex flex-column gap-4">
+        <article
+          v-for="category in CATEGORY_ORDER"
+          :key="category"
+          class="card shadow-sm"
+        >
+          <div class="card-body">
+            <h3 class="h6 mb-3">
+              {{ category }}
+            </h3>
+            <div class="table-responsive">
+              <table class="table table-striped table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>Naam</th>
+                    <th>Vereniging</th>
+                    <th
+                      v-for="cross in crosses"
+                      :key="`${category}-${cross.id}`"
+                    >
+                      {{ formatDate(cross.date) }}
+                    </th>
+                    <th>Totaal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="row in standingsPerCategory.get(category) || []"
+                    :key="`${category}-${row.participantKey}`"
+                  >
+                    <td>{{ row.participantName }}</td>
+                    <td>{{ row.association || '-' }}</td>
+                    <td
+                      v-for="(points, index) in row.pointsPerCross"
+                      :key="`${row.participantKey}-${index}`"
+                    >
+                      {{ points ?? '-' }}
+                    </td>
+                    <td class="fw-semibold">
+                      {{ row.total }}
+                    </td>
+                  </tr>
+                  <tr v-if="(standingsPerCategory.get(category) || []).length === 0">
+                    <td
+                      class="text-secondary"
+                      :colspan="3 + crosses.length"
+                    >
+                      Geen deelnemers voor deze categorie.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+      </section>
+    </template>
   </main>
 </template>
-
-<style scoped>
-header {
-  line-height: 1.5;
-}
-
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
-}
-
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
-}
-</style>
