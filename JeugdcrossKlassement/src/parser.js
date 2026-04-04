@@ -32,7 +32,7 @@ export function normalizeParticipantKey(value) {
 }
 
 function detectGender(upperLine) {
-  if (upperLine.includes('VROUWEN') || upperLine.includes('MEISJES')) {
+  if (upperLine.includes('VROUWEN') || upperLine.includes('MEISJES') || upperLine.includes('DAMES')) {
     return 'female'
   }
 
@@ -49,6 +49,10 @@ function detectGender(upperLine) {
   }
 
   if (/^\s*VU\d{1,2}/.test(upperLine)) {
+    return 'female'
+  }
+
+  if (/^\s*DU\d{1,2}/.test(upperLine)) {
     return 'female'
   }
 
@@ -145,6 +149,45 @@ export function parseCrossResults(rawText) {
       ...resultLine,
       category: currentCategory,
     })
+  }
+
+  const knownAssociationKeys = new Set(
+    parsed
+      .map((row) => normalizeParticipantKey(row.association))
+      .filter((value) => value.length > 0),
+  )
+
+  for (const row of parsed) {
+    if (row.association) {
+      continue
+    }
+
+    const nameParts = row.name.split(' ').filter((part) => part.length > 0)
+    const maxTailSize = Math.min(4, nameParts.length - 1)
+    let fixed = false
+
+    for (let tailSize = maxTailSize; tailSize >= 1; tailSize -= 1) {
+      const tail = nameParts.slice(-tailSize).join(' ')
+      const tailKey = normalizeParticipantKey(tail)
+      if (!knownAssociationKeys.has(tailKey)) {
+        continue
+      }
+
+      const cleanedName = nameParts.slice(0, -tailSize).join(' ').trim()
+      if (!cleanedName) {
+        continue
+      }
+
+      row.association = tail
+      row.name = cleanedName
+      row.participantKey = normalizeParticipantKey(cleanedName)
+      fixed = true
+      break
+    }
+
+    if (!fixed) {
+      row.association = ''
+    }
   }
 
   return parsed

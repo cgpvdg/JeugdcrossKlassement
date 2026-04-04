@@ -133,6 +133,70 @@ const participantDecisionSchema = {
   indexes: [['category', 'associationKey']],
 }
 
+const crossAssociationDecisionSchema = {
+  title: 'cross association decision schema',
+  version: 0,
+  primaryKey: 'id',
+  type: 'object',
+  properties: {
+    id: {
+      type: 'string',
+      maxLength: 420,
+    },
+    category: {
+      type: 'string',
+    },
+    leftParticipantKey: {
+      type: 'string',
+      maxLength: 220,
+    },
+    leftAssociationKey: {
+      type: 'string',
+      maxLength: 220,
+    },
+    rightParticipantKey: {
+      type: 'string',
+      maxLength: 220,
+    },
+    rightAssociationKey: {
+      type: 'string',
+      maxLength: 220,
+    },
+    decision: {
+      type: 'string',
+      enum: ['same', 'different'],
+    },
+    canonicalParticipantKey: {
+      type: 'string',
+      maxLength: 220,
+    },
+    canonicalParticipantName: {
+      type: 'string',
+    },
+    canonicalAssociationKey: {
+      type: 'string',
+      maxLength: 220,
+    },
+    canonicalAssociationName: {
+      type: 'string',
+    },
+    updatedAt: {
+      type: 'string',
+    },
+  },
+  required: [
+    'id',
+    'category',
+    'leftParticipantKey',
+    'leftAssociationKey',
+    'rightParticipantKey',
+    'rightAssociationKey',
+    'decision',
+    'updatedAt',
+  ],
+  indexes: [['category', 'leftParticipantKey'], ['category', 'rightParticipantKey']],
+}
+
 let dbPromise = null
 
 export function createCrossId() {
@@ -155,6 +219,9 @@ export async function getDatabase() {
         },
         participantDecisions: {
           schema: participantDecisionSchema,
+        },
+        crossAssociationDecisions: {
+          schema: crossAssociationDecisionSchema,
         },
       })
       return db

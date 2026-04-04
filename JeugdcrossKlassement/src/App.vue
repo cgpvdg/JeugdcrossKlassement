@@ -19,6 +19,7 @@ let notificationTimeoutId = null
 const crosses = ref([])
 const results = ref([])
 const participantDecisions = ref([])
+const crossAssociationDecisions = ref([])
 
 function resetMessages() {
   if (notificationTimeoutId) {
@@ -79,6 +80,13 @@ function sortedPair(left, right) {
 function createDecisionId(category, associationKey, leftKey, rightKey) {
   const [a, b] = sortedPair(leftKey, rightKey)
   return `${sanitizeForId(category)}::${associationKey}::${a}::${b}`
+}
+
+function createCrossAssociationDecisionId(category, leftParticipantKey, leftAssociationKey, rightParticipantKey, rightAssociationKey) {
+  const left = `${leftParticipantKey}::${leftAssociationKey}`
+  const right = `${rightParticipantKey}::${rightAssociationKey}`
+  const [a, b] = sortedPair(left, right)
+  return `${sanitizeForId(category)}::cross-association::${a}::${b}`
 }
 
 function compactKey(value) {
@@ -154,6 +162,81 @@ function baseFinalistsCount(classifiedCount) {
   return Math.ceil(classifiedCount * 0.5)
 }
 
+const COMBINED_TEAM_CATEGORY_CONFIG = [
+  {
+    label: 'Mannen U20/U18',
+    sourceCategories: ['Mannen U20', 'Mannen U18'],
+  },
+  {
+    label: 'Vrouwen U20/U18',
+    sourceCategories: ['Vrouwen U20', 'Vrouwen U18'],
+  },
+]
+
+const TEAM_CATEGORY_CONFIG = [
+  ...COMBINED_TEAM_CATEGORY_CONFIG,
+  ...CATEGORY_ORDER
+    .filter((category) => !['Mannen U20', 'Mannen U18', 'Vrouwen U20', 'Vrouwen U18'].includes(category))
+    .map((category) => ({
+      label: category,
+      sourceCategories: [category],
+    })),
+]
+
+function teamFinalistsCount(classifiedCount) {
+  if (classifiedCount <= 0) {
+    return 0
+  }
+  if (classifiedCount === 1) {
+    return 1
+  }
+  if (classifiedCount <= 3) {
+    return 2
+  }
+  if (classifiedCount === 4) {
+    return 3
+  }
+  if (classifiedCount <= 6) {
+    return 4
+  }
+  if (classifiedCount <= 8) {
+    return 5
+  }
+  if (classifiedCount <= 10) {
+    return 6
+  }
+  return 7
+}
+
+function isExcludedFromTeamQualification(associationKey) {
+  return (
+    associationKey === 'ntb'
+    || associationKey.includes('nederlandse triathlon bon')
+    || associationKey.includes('nederlandse triathlon bond')
+  )
+}
+
+function parseTimeToSeconds(timeText) {
+  if (!timeText) {
+    return null
+  }
+
+  const match = String(timeText).trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
+  if (!match) {
+    return null
+  }
+
+  const first = Number.parseInt(match[1], 10)
+  const second = Number.parseInt(match[2], 10)
+  const third = match[3] ? Number.parseInt(match[3], 10) : null
+
+  if (third === null) {
+    return first * 60 + second
+  }
+
+  return first * 3600 + second * 60 + third
+}
+
 async function refreshData() {
   if (!db.value) {
     return
@@ -162,10 +245,12 @@ async function refreshData() {
   const crossDocs = await db.value.crosses.find().sort({ date: 'asc' }).exec()
   const resultDocs = await db.value.results.find().exec()
   const decisionDocs = await db.value.participantDecisions.find().exec()
+  const crossAssociationDecisionDocs = await db.value.crossAssociationDecisions.find().exec()
 
   crosses.value = crossDocs.map((doc) => doc.toJSON())
   results.value = resultDocs.map((doc) => doc.toJSON())
   participantDecisions.value = decisionDocs.map((doc) => doc.toJSON())
+  crossAssociationDecisions.value = crossAssociationDecisionDocs.map((doc) => doc.toJSON())
 }
 
 async function init() {
@@ -196,6 +281,7 @@ async function resetAllData() {
     crosses.value = []
     results.value = []
     participantDecisions.value = []
+    crossAssociationDecisions.value = []
     await refreshData()
     showSuccess('Alles is verwijderd. Je kunt nu schoon starten.')
   }
@@ -372,6 +458,10 @@ const decisionsById = computed(() => {
   return new Map(participantDecisions.value.map((decision) => [decision.id, decision]))
 })
 
+const crossAssociationDecisionsById = computed(() => {
+  return new Map(crossAssociationDecisions.value.map((decision) => [decision.id, decision]))
+})
+
 const mergeResolution = computed(() => {
   const groups = new Map()
 
@@ -491,11 +581,162 @@ const mergeResolution = computed(() => {
   return canonicalByGroup
 })
 
+const associationMergedResults = computed(() => {
+  return results.value.map((result) => {
+    const associationKey = canonicalAssociationKey(result.association)
+    const groupKey = createGroupKey(result.category, associationKey)
+    const groupMapping = mergeResolution.value.get(groupKey)
+    const mapping = groupMapping?.get(result.participantKey)
+
+    return {
+      ...result,
+      participantKey: mapping?.canonicalKey || result.participantKey,
+      participantName: mapping?.canonicalName || result.participantName,
+      associationKey,
+    }
+  })
+})
+
+const crossAssociationMergeResolution = computed(() => {
+  const groups = new Map()
+
+  for (const result of associationMergedResults.value) {
+    const category = result.category
+    if (!groups.has(category)) {
+      groups.set(category, {
+        parent: new Map(),
+        nodes: new Map(),
+        sameDecisions: [],
+      })
+    }
+    const group = groups.get(category)
+    const nodeKey = `${result.participantKey}::${result.associationKey}`
+    if (!group.nodes.has(nodeKey)) {
+      group.nodes.set(nodeKey, {
+        participantKey: result.participantKey,
+        participantName: result.participantName,
+        associationKey: result.associationKey,
+        association: result.association,
+      })
+    }
+    group.parent.set(nodeKey, nodeKey)
+  }
+
+  function find(parent, key) {
+    const p = parent.get(key)
+    if (!p || p === key) {
+      return key
+    }
+    const root = find(parent, p)
+    parent.set(key, root)
+    return root
+  }
+
+  function union(parent, left, right) {
+    const rootLeft = find(parent, left)
+    const rootRight = find(parent, right)
+    if (rootLeft !== rootRight) {
+      parent.set(rootRight, rootLeft)
+    }
+  }
+
+  for (const decision of crossAssociationDecisions.value) {
+    if (decision.decision !== 'same') {
+      continue
+    }
+    const group = groups.get(decision.category)
+    if (!group) {
+      continue
+    }
+    const leftNode = `${decision.leftParticipantKey}::${decision.leftAssociationKey}`
+    const rightNode = `${decision.rightParticipantKey}::${decision.rightAssociationKey}`
+    if (!group.parent.has(leftNode) || !group.parent.has(rightNode)) {
+      continue
+    }
+    union(group.parent, leftNode, rightNode)
+    group.sameDecisions.push(decision)
+  }
+
+  const resolvedByCategory = new Map()
+  for (const [category, group] of groups) {
+    const components = new Map()
+    for (const key of group.parent.keys()) {
+      const root = find(group.parent, key)
+      if (!components.has(root)) {
+        components.set(root, [])
+      }
+      components.get(root).push(key)
+    }
+
+    const categoryMap = new Map()
+    for (const componentKeys of components.values()) {
+      componentKeys.sort()
+      let canonicalNode = componentKeys[0]
+      let canonicalName = group.nodes.get(canonicalNode)?.participantName || ''
+      let canonicalAssociationName = group.nodes.get(canonicalNode)?.association || ''
+      let newestMatch = null
+
+      for (const decision of group.sameDecisions) {
+        const leftNode = `${decision.leftParticipantKey}::${decision.leftAssociationKey}`
+        const rightNode = `${decision.rightParticipantKey}::${decision.rightAssociationKey}`
+        if (componentKeys.includes(leftNode) && componentKeys.includes(rightNode)) {
+          if (!newestMatch || decision.updatedAt > newestMatch.updatedAt) {
+            newestMatch = decision
+          }
+        }
+      }
+
+      if (newestMatch) {
+        const desiredNode = `${newestMatch.canonicalParticipantKey || ''}::${newestMatch.canonicalAssociationKey || ''}`
+        if (newestMatch.canonicalParticipantKey && newestMatch.canonicalAssociationKey && componentKeys.includes(desiredNode)) {
+          canonicalNode = desiredNode
+        }
+        if (newestMatch.canonicalParticipantName) {
+          canonicalName = newestMatch.canonicalParticipantName
+        }
+        if (newestMatch.canonicalAssociationName) {
+          canonicalAssociationName = newestMatch.canonicalAssociationName
+        }
+      }
+
+      const nodeData = group.nodes.get(canonicalNode)
+      for (const key of componentKeys) {
+        categoryMap.set(key, {
+          canonicalParticipantKey: nodeData?.participantKey || key.split('::')[0],
+          canonicalParticipantName: canonicalName || nodeData?.participantName || '',
+          canonicalAssociationKey: nodeData?.associationKey || key.split('::')[1],
+          canonicalAssociationName: canonicalAssociationName || nodeData?.association || '',
+        })
+      }
+    }
+
+    resolvedByCategory.set(category, categoryMap)
+  }
+
+  return resolvedByCategory
+})
+
+const normalizedResults = computed(() => {
+  return associationMergedResults.value.map((result) => {
+    const nodeKey = `${result.participantKey}::${result.associationKey}`
+    const categoryMap = crossAssociationMergeResolution.value.get(result.category)
+    const mapping = categoryMap?.get(nodeKey)
+
+    return {
+      ...result,
+      participantKey: mapping?.canonicalParticipantKey || result.participantKey,
+      participantName: mapping?.canonicalParticipantName || result.participantName,
+      associationKey: mapping?.canonicalAssociationKey || result.associationKey,
+      association: mapping?.canonicalAssociationName || result.association,
+    }
+  })
+})
+
 const pendingNameConflicts = computed(() => {
   const participantsByGroup = new Map()
   const pending = []
 
-  for (const result of results.value) {
+  for (const result of normalizedResults.value) {
     const associationKey = canonicalAssociationKey(result.association)
     const groupKey = createGroupKey(result.category, associationKey)
     if (!participantsByGroup.has(groupKey)) {
@@ -563,6 +804,141 @@ const pendingNameConflicts = computed(() => {
   return pending.sort((left, right) => right.similarity - left.similarity)
 })
 
+const pendingCrossAssociationChecks = computed(() => {
+  const byCategory = new Map()
+  const checks = []
+
+  for (const result of associationMergedResults.value) {
+    const category = result.category
+    if (!byCategory.has(category)) {
+      byCategory.set(category, new Map())
+    }
+
+    const categoryMap = byCategory.get(category)
+    const rowKey = `${result.participantKey}::${result.associationKey}`
+    if (!categoryMap.has(rowKey)) {
+      categoryMap.set(rowKey, {
+        participantKey: result.participantKey,
+        participantName: result.participantName,
+        associationKey: result.associationKey,
+        association: result.association || '-',
+      })
+    }
+  }
+
+  for (const [category, participantsMap] of byCategory) {
+    const participants = Array.from(participantsMap.values())
+      .filter((participant) => participant.participantKey.length >= 4)
+      .sort((left, right) => left.participantName.localeCompare(right.participantName, 'nl'))
+
+    for (let leftIndex = 0; leftIndex < participants.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < participants.length; rightIndex += 1) {
+        const left = participants[leftIndex]
+        const right = participants[rightIndex]
+
+        if (left.associationKey === right.associationKey) {
+          continue
+        }
+
+        const score = similarity(left.participantKey, right.participantKey)
+        const exactMatch = left.participantKey === right.participantKey
+        if (!exactMatch && score < 0.88) {
+          continue
+        }
+
+        const id = createCrossAssociationDecisionId(
+          category,
+          left.participantKey,
+          left.associationKey,
+          right.participantKey,
+          right.associationKey,
+        )
+        if (crossAssociationDecisionsById.value.has(id)) {
+          continue
+        }
+
+        const categoryMapping = crossAssociationMergeResolution.value.get(category)
+        const leftNode = `${left.participantKey}::${left.associationKey}`
+        const rightNode = `${right.participantKey}::${right.associationKey}`
+        const leftCanonical = categoryMapping?.get(leftNode)
+        const rightCanonical = categoryMapping?.get(rightNode)
+        if (
+          leftCanonical
+          && rightCanonical
+          && leftCanonical.canonicalParticipantKey === rightCanonical.canonicalParticipantKey
+          && leftCanonical.canonicalAssociationKey === rightCanonical.canonicalAssociationKey
+        ) {
+          continue
+        }
+
+        checks.push({
+          id,
+          category,
+          leftParticipantKey: left.participantKey,
+          leftAssociationKey: left.associationKey,
+          leftName: left.participantName,
+          leftAssociation: left.association,
+          rightParticipantKey: right.participantKey,
+          rightAssociationKey: right.associationKey,
+          rightName: right.participantName,
+          rightAssociation: right.association,
+          similarity: score,
+        })
+      }
+    }
+  }
+
+  const uniqueChecks = new Map()
+  for (const check of checks) {
+    if (!uniqueChecks.has(check.id)) {
+      uniqueChecks.set(check.id, check)
+    }
+  }
+
+  return Array.from(uniqueChecks.values()).sort((left, right) => right.similarity - left.similarity)
+})
+
+async function chooseSameAcrossAssociations(check, preferredSide) {
+  resetMessages()
+  const useLeft = preferredSide === 'left'
+  await db.value.crossAssociationDecisions.upsert({
+    id: check.id,
+    category: check.category,
+    leftParticipantKey: check.leftParticipantKey,
+    leftAssociationKey: check.leftAssociationKey,
+    rightParticipantKey: check.rightParticipantKey,
+    rightAssociationKey: check.rightAssociationKey,
+    decision: 'same',
+    canonicalParticipantKey: useLeft ? check.leftParticipantKey : check.rightParticipantKey,
+    canonicalParticipantName: useLeft ? check.leftName : check.rightName,
+    canonicalAssociationKey: useLeft ? check.leftAssociationKey : check.rightAssociationKey,
+    canonicalAssociationName: useLeft ? check.leftAssociation : check.rightAssociation,
+    updatedAt: new Date().toISOString(),
+  })
+  await refreshData()
+  showSuccess(`Samengevoegd over verenigingen als dezelfde deelnemer: ${useLeft ? check.leftName : check.rightName}.`)
+}
+
+async function chooseDifferentAcrossAssociations(check) {
+  resetMessages()
+  await db.value.crossAssociationDecisions.upsert({
+    id: check.id,
+    category: check.category,
+    leftParticipantKey: check.leftParticipantKey,
+    leftAssociationKey: check.leftAssociationKey,
+    rightParticipantKey: check.rightParticipantKey,
+    rightAssociationKey: check.rightAssociationKey,
+    decision: 'different',
+    canonicalParticipantKey: '',
+    canonicalParticipantName: '',
+    canonicalAssociationKey: '',
+    canonicalAssociationName: '',
+    updatedAt: new Date().toISOString(),
+  })
+  await refreshData()
+  showSuccess('Gemarkeerd als aparte deelnemers (over verenigingen).')
+}
+
 async function chooseSameParticipant(conflict, preferredSide) {
   resetMessages()
   const canonicalKey = preferredSide === 'left' ? conflict.leftKey : conflict.rightKey
@@ -610,18 +986,14 @@ const standingsPerCategory = computed(() => {
 
   const crossIndex = new Map(crosses.value.map((cross, index) => [cross.id, index]))
 
-  for (const result of results.value) {
+  for (const result of normalizedResults.value) {
     if (!byCategory.has(result.category)) {
       continue
     }
 
-    const associationKey = canonicalAssociationKey(result.association)
-    const groupKey = createGroupKey(result.category, associationKey)
-    const groupMapping = mergeResolution.value.get(groupKey)
-    const mapping = groupMapping?.get(result.participantKey)
-
-    const participantKey = mapping?.canonicalKey || result.participantKey
-    const participantName = mapping?.canonicalName || result.participantName
+    const associationKey = result.associationKey
+    const participantKey = result.participantKey
+    const participantName = result.participantName
 
     const categoryMap = byCategory.get(result.category)
     const crossPosition = crossIndex.get(result.crossId)
@@ -637,7 +1009,7 @@ const standingsPerCategory = computed(() => {
         association: result.association,
         pointsPerCross: Array(crosses.value.length).fill(null),
         starts: 0,
-        rawTotal: 0,
+        baseTotal: 0,
         bonus: 0,
         total: 0,
       })
@@ -647,7 +1019,6 @@ const standingsPerCategory = computed(() => {
     participantRow.participantName = participantName || participantRow.participantName
     participantRow.association = participantRow.association || result.association
     participantRow.pointsPerCross[crossPosition] = result.points
-    participantRow.rawTotal += result.points
   }
 
   const rowsByCategory = new Map()
@@ -658,16 +1029,21 @@ const standingsPerCategory = computed(() => {
       row.eligibleForPlacement = row.starts >= 2
       row.place = null
       row.bonus = 0
-      row.total = row.rawTotal
+      row.baseTotal = 0
+      row.total = 0
       row.isQualifiedForFinal = false
     }
 
-    const classifiedRows = rows.filter((row) => row.eligibleForPlacement)
     const bonusForCategory = rows.length <= 10 ? 3 : 5
 
     for (const row of rows) {
+      const twoLowestPoints = row.pointsPerCross
+        .filter((value) => value !== null)
+        .sort((left, right) => left - right)
+        .slice(0, 2)
+      row.baseTotal = twoLowestPoints.reduce((sum, points) => sum + points, 0)
       row.bonus = row.starts >= 3 ? bonusForCategory : 0
-      row.total = row.rawTotal - row.bonus
+      row.total = row.baseTotal - row.bonus
     }
 
     rows.sort((left, right) => {
@@ -683,13 +1059,22 @@ const standingsPerCategory = computed(() => {
       return left.participantName.localeCompare(right.participantName, 'nl')
     })
 
-    let placeCounter = 1
+    let lastTotal = null
+    let lastPlace = null
+    let eligibleIndex = 0
     for (const row of rows) {
       if (!row.eligibleForPlacement) {
         continue
       }
-      row.place = placeCounter
-      placeCounter += 1
+      eligibleIndex += 1
+      if (lastTotal !== null && row.total === lastTotal) {
+        row.place = lastPlace
+      }
+      else {
+        row.place = eligibleIndex
+        lastPlace = eligibleIndex
+        lastTotal = row.total
+      }
     }
 
     const rankedClassifiedRows = rows.filter((row) => row.eligibleForPlacement)
@@ -706,6 +1091,157 @@ const standingsPerCategory = computed(() => {
       }
     }
     rowsByCategory.set(category, rows)
+  }
+
+  return rowsByCategory
+})
+
+const teamStandingsPerCategory = computed(() => {
+  const crossIndex = new Map(crosses.value.map((cross, index) => [cross.id, index]))
+  const rowsByCategory = new Map()
+
+  for (const config of TEAM_CATEGORY_CONFIG) {
+    const rowsByAssociation = new Map()
+    const relevant = normalizedResults.value.filter((result) => config.sourceCategories.includes(result.category))
+
+    const effectiveEntries = []
+    for (const cross of crosses.value) {
+      const rowsInCross = relevant
+        .filter((result) => result.crossId === cross.id)
+        .map((result) => ({
+          crossId: result.crossId,
+          associationKey: result.associationKey,
+          association: result.association,
+          timeSeconds: parseTimeToSeconds(result.time),
+        }))
+        .filter((row) => row.timeSeconds !== null)
+        .sort((left, right) => left.timeSeconds - right.timeSeconds)
+
+      let previousTime = null
+      let previousRank = 0
+      rowsInCross.forEach((row, index) => {
+        const rank = previousTime !== null && row.timeSeconds === previousTime
+          ? previousRank
+          : index + 1
+        previousTime = row.timeSeconds
+        previousRank = rank
+
+        effectiveEntries.push({
+          crossId: row.crossId,
+          associationKey: row.associationKey,
+          association: row.association,
+          effectivePoints: rank,
+        })
+      })
+    }
+
+    const perCrossAssociation = new Map()
+    for (const entry of effectiveEntries) {
+      if (!crossIndex.has(entry.crossId)) {
+        continue
+      }
+      const key = `${entry.crossId}::${entry.associationKey}`
+      if (!perCrossAssociation.has(key)) {
+        perCrossAssociation.set(key, [])
+      }
+      perCrossAssociation.get(key).push(entry)
+    }
+
+    for (const [combinedKey, associationEntries] of perCrossAssociation) {
+      const [crossId, associationKey] = combinedKey.split('::')
+      const crossPosition = crossIndex.get(crossId)
+      if (crossPosition === undefined) {
+        continue
+      }
+
+      const orderedPoints = associationEntries
+        .map((row) => row.effectivePoints)
+        .sort((left, right) => left - right)
+
+      const hasMinimumThree = orderedPoints.length >= 3
+      const score = hasMinimumThree
+        ? orderedPoints.slice(0, 3).reduce((sum, points) => sum + points, 0)
+        : null
+
+      const associationName = associationEntries.find((row) => row.association)?.association || '-'
+
+      if (!rowsByAssociation.has(associationKey)) {
+        rowsByAssociation.set(associationKey, {
+          category: config.label,
+          associationKey,
+          association: associationName,
+          pointsPerCross: Array(crosses.value.length).fill(null),
+          starts: 0,
+          total: 0,
+          place: null,
+          eligibleForPlacement: false,
+          isQualifiedForFinal: false,
+        })
+      }
+
+      const row = rowsByAssociation.get(associationKey)
+      row.association = row.association || associationName
+      row.pointsPerCross[crossPosition] = score
+    }
+
+    const rows = Array.from(rowsByAssociation.values())
+    for (const row of rows) {
+      row.starts = row.pointsPerCross.filter((value) => value !== null).length
+      const sortedScores = row.pointsPerCross
+        .filter((value) => value !== null)
+        .sort((left, right) => left - right)
+      row.total = sortedScores.slice(0, 2).reduce((sum, value) => sum + value, 0)
+      row.eligibleForPlacement = row.starts >= 2 && !isExcludedFromTeamQualification(row.associationKey)
+      row.place = null
+      row.isQualifiedForFinal = false
+    }
+
+    const visibleRows = rows.filter((row) => row.total > 0)
+
+    visibleRows.sort((left, right) => {
+      if (left.eligibleForPlacement !== right.eligibleForPlacement) {
+        return left.eligibleForPlacement ? -1 : 1
+      }
+      if (left.total !== right.total) {
+        return left.total - right.total
+      }
+      if (left.starts !== right.starts) {
+        return right.starts - left.starts
+      }
+      return left.association.localeCompare(right.association, 'nl')
+    })
+
+    let lastTotal = null
+    let lastPlace = null
+    let eligibleIndex = 0
+    for (const row of visibleRows) {
+      if (!row.eligibleForPlacement) {
+        continue
+      }
+      eligibleIndex += 1
+      if (lastTotal !== null && row.total === lastTotal) {
+        row.place = lastPlace
+      }
+      else {
+        row.place = eligibleIndex
+        lastPlace = eligibleIndex
+        lastTotal = row.total
+      }
+    }
+
+    const classifiedRows = visibleRows.filter((row) => row.eligibleForPlacement)
+    const finalists = teamFinalistsCount(classifiedRows.length)
+    if (finalists > 0 && classifiedRows.length > 0) {
+      const cutoffIndex = Math.min(finalists, classifiedRows.length) - 1
+      const cutoffTotal = classifiedRows[cutoffIndex].total
+      for (const row of classifiedRows) {
+        if (row.total <= cutoffTotal) {
+          row.isQualifiedForFinal = true
+        }
+      }
+    }
+
+    rowsByCategory.set(config.label, visibleRows)
   }
 
   return rowsByCategory
@@ -776,6 +1312,16 @@ onMounted(() => {
             @click="activeTab = 'klassement'"
           >
             Individueel klassement
+          </button>
+        </li>
+        <li class="nav-item">
+          <button
+            class="nav-link"
+            :class="{ active: activeTab === 'ploegen' }"
+            type="button"
+            @click="activeTab = 'ploegen'"
+          >
+            Ploegenklassement
           </button>
         </li>
       </ul>
@@ -866,7 +1412,7 @@ onMounted(() => {
         </section>
       </template>
 
-      <template v-else>
+      <template v-else-if="activeTab === 'klassement'">
         <section
           v-if="pendingNameConflicts.length > 0"
           class="card shadow-sm mb-4"
@@ -920,6 +1466,73 @@ onMounted(() => {
                           class="btn btn-sm btn-outline-secondary"
                           type="button"
                           @click="chooseDifferentParticipants(conflict)"
+                        >
+                          Aparte deelnemers
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section
+          v-if="pendingCrossAssociationChecks.length > 0"
+          class="card shadow-sm mb-4"
+        >
+          <div class="card-body">
+            <h2 class="h5 mb-3">
+              Controle Dubbele Namen Over Verenigingen
+            </h2>
+            <p class="text-secondary mb-3">
+              Mogelijk dezelfde deelnemer met een andere vereniging. Dit blokkeert niets, maar is bedoeld voor controle.
+            </p>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>Categorie</th>
+                    <th>Naam A</th>
+                    <th>Vereniging A</th>
+                    <th>Naam B</th>
+                    <th>Vereniging B</th>
+                    <th>Gelijkenis</th>
+                    <th>Actie</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="check in pendingCrossAssociationChecks"
+                    :key="check.id"
+                  >
+                    <td>{{ check.category }}</td>
+                    <td>{{ check.leftName }}</td>
+                    <td>{{ check.leftAssociation }}</td>
+                    <td>{{ check.rightName }}</td>
+                    <td>{{ check.rightAssociation }}</td>
+                    <td>{{ Math.round(check.similarity * 100) }}%</td>
+                    <td>
+                      <div class="d-flex flex-wrap gap-2">
+                        <button
+                          class="btn btn-sm btn-outline-success"
+                          type="button"
+                          @click="chooseSameAcrossAssociations(check, 'left')"
+                        >
+                          Zelfde als {{ check.leftName }}
+                        </button>
+                        <button
+                          class="btn btn-sm btn-outline-success"
+                          type="button"
+                          @click="chooseSameAcrossAssociations(check, 'right')"
+                        >
+                          Zelfde als {{ check.rightName }}
+                        </button>
+                        <button
+                          class="btn btn-sm btn-outline-secondary"
+                          type="button"
+                          @click="chooseDifferentAcrossAssociations(check)"
                         >
                           Aparte deelnemers
                         </button>
@@ -997,6 +1610,76 @@ onMounted(() => {
                         :colspan="5 + crosses.length"
                       >
                         Geen deelnemers voor deze categorie.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </article>
+        </section>
+      </template>
+
+      <template v-else>
+        <section class="d-flex flex-column gap-4">
+          <article
+            v-for="config in TEAM_CATEGORY_CONFIG"
+            :key="config.label"
+            class="card shadow-sm"
+          >
+            <div class="card-body">
+              <h3 class="h6 mb-3">
+                {{ config.label }}
+              </h3>
+              <p class="small text-secondary mb-3">
+                <template v-if="canHighlightFinalists">
+                  Groen gemarkeerd = geplaatst voor de finale.
+                </template>
+                <template v-else>
+                  Finale-markering verschijnt zodra de 3 wedstrijd-uitslagen zijn geupload.
+                </template>
+              </p>
+              <div class="table-responsive">
+                <table class="table table-striped table-sm align-middle">
+                  <thead>
+                    <tr>
+                      <th>Plaats</th>
+                      <th>Vereniging</th>
+                      <th
+                        v-for="cross in crosses"
+                        :key="`${config.label}-${cross.id}`"
+                      >
+                        {{ formatDate(cross.date) }}
+                      </th>
+                      <th>Totaal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="row in teamStandingsPerCategory.get(config.label) || []"
+                      :key="`${config.label}-${row.associationKey}`"
+                      :class="{ 'table-success': row.isQualifiedForFinal && canHighlightFinalists }"
+                    >
+                      <td class="fw-semibold">
+                        {{ row.place ?? '-' }}
+                      </td>
+                      <td>{{ row.association || '-' }}</td>
+                      <td
+                        v-for="(points, index) in row.pointsPerCross"
+                        :key="`${row.associationKey}-${index}`"
+                      >
+                        {{ points ?? '-' }}
+                      </td>
+                      <td class="fw-semibold">
+                        {{ row.total }}
+                      </td>
+                    </tr>
+                    <tr v-if="(teamStandingsPerCategory.get(config.label) || []).length === 0">
+                      <td
+                        class="text-secondary"
+                        :colspan="3 + crosses.length"
+                      >
+                        Geen ploegen voor deze categorie.
                       </td>
                     </tr>
                   </tbody>
