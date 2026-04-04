@@ -238,6 +238,18 @@ function closeTeamBreakdown() {
   teamBreakdownModal.value = null
 }
 
+function downloadTextFile(filename, content, mimeType = 'application/json') {
+  const blob = new Blob([content], { type: `${mimeType};charset=utf-8` })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
+}
+
 function participantDisplayName(participant, isCombinedCategory) {
   if (!isCombinedCategory) {
     return participant.name
@@ -301,6 +313,82 @@ async function resetAllData() {
   }
   catch (error) {
     showError(`Reset mislukt: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+async function exportAllData() {
+  resetMessages()
+  try {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      version: 1,
+      data: {
+        crosses: crosses.value,
+        results: results.value,
+        participantDecisions: participantDecisions.value,
+        crossAssociationDecisions: crossAssociationDecisions.value,
+      },
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    downloadTextFile(`jeugdcross-export-${timestamp}.json`, JSON.stringify(payload, null, 2))
+    showSuccess('Export aangemaakt.')
+  }
+  catch (error) {
+    showError(`Export mislukt: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+async function importAllData(event) {
+  resetMessages()
+  const file = event.target.files?.[0]
+  if (!file) {
+    return
+  }
+
+  try {
+    const shouldImport = window.confirm(
+      'Importeren vervangt alle huidige lokale data. Wil je doorgaan?',
+    )
+    if (!shouldImport) {
+      return
+    }
+
+    const text = await file.text()
+    const parsed = JSON.parse(text)
+    const importedData = parsed?.data || {}
+
+    const importedCrosses = Array.isArray(importedData.crosses) ? importedData.crosses : []
+    const importedResults = Array.isArray(importedData.results) ? importedData.results : []
+    const importedParticipantDecisions = Array.isArray(importedData.participantDecisions) ? importedData.participantDecisions : []
+    const importedCrossAssociationDecisions = Array.isArray(importedData.crossAssociationDecisions)
+      ? importedData.crossAssociationDecisions
+      : []
+
+    await resetDatabase()
+    db.value = markRaw(await getDatabase())
+
+    if (importedCrosses.length > 0) {
+      await db.value.crosses.bulkInsert(importedCrosses)
+    }
+    if (importedResults.length > 0) {
+      await db.value.results.bulkInsert(importedResults)
+    }
+    if (importedParticipantDecisions.length > 0) {
+      await db.value.participantDecisions.bulkInsert(importedParticipantDecisions)
+    }
+    if (importedCrossAssociationDecisions.length > 0) {
+      await db.value.crossAssociationDecisions.bulkInsert(importedCrossAssociationDecisions)
+    }
+
+    await refreshData()
+    showSuccess('Import voltooid.')
+  }
+  catch (error) {
+    showError(`Import mislukt: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  finally {
+    event.target.value = ''
   }
 }
 
@@ -1265,22 +1353,13 @@ onMounted(() => {
 
 <template>
   <main class="container py-4 py-md-5">
-    <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
-      <div class="d-flex flex-column gap-2">
-        <h1 class="h3 mb-0">
-          Jeugdcross competitie
-        </h1>
-        <p class="text-secondary mb-0">
-          Upload wedstrijduitslagen, controleer conflicten en volg het individuele en ploegenklassement.
-        </p>
-      </div>
-      <button
-        class="btn btn-outline-danger btn-sm"
-        type="button"
-        @click="resetAllData"
-      >
-        Reset alles
-      </button>
+    <div class="d-flex flex-column gap-2 mb-4">
+      <h1 class="h3 mb-0">
+        Jeugdcross competitie
+      </h1>
+      <p class="text-secondary mb-0">
+        Upload wedstrijduitslagen, controleer conflicten en volg het individuele en ploegenklassement.
+      </p>
     </div>
 
     <div
@@ -1333,6 +1412,16 @@ onMounted(() => {
             @click="activeTab = 'ploegen'"
           >
             Ploegenklassement
+          </button>
+        </li>
+        <li class="nav-item ms-auto">
+          <button
+            class="nav-link"
+            :class="{ active: activeTab === 'configuratie' }"
+            type="button"
+            @click="activeTab = 'configuratie'"
+          >
+            Configuratie
           </button>
         </li>
       </ul>
@@ -1631,7 +1720,7 @@ onMounted(() => {
         </section>
       </template>
 
-      <template v-else>
+      <template v-else-if="activeTab === 'ploegen'">
         <section class="card shadow-sm mb-4">
           <div class="card-body">
             <p class="mb-0">
@@ -1707,6 +1796,44 @@ onMounted(() => {
               </div>
             </div>
           </article>
+        </section>
+      </template>
+
+      <template v-else>
+        <section class="card shadow-sm mb-4">
+          <div class="card-body">
+            <h2 class="h5 mb-3">
+              Configuratie
+            </h2>
+            <div class="d-flex flex-wrap gap-2">
+              <button
+                class="btn btn-outline-danger"
+                type="button"
+                @click="resetAllData"
+              >
+                Reset alles
+              </button>
+              <button
+                class="btn btn-outline-primary"
+                type="button"
+                @click="exportAllData"
+              >
+                Exporteer alles
+              </button>
+              <label class="btn btn-outline-secondary mb-0">
+                Importeer alles
+                <input
+                  class="d-none"
+                  type="file"
+                  accept=".json,application/json"
+                  @change="importAllData"
+                >
+              </label>
+            </div>
+            <p class="text-secondary small mb-0 mt-3">
+              Export en import bevatten alle opgeslagen gegevens en keuzes, zodat je later exact kunt verdergaan.
+            </p>
+          </div>
         </section>
       </template>
     </template>
