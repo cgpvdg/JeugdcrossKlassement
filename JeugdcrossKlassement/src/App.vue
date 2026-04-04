@@ -14,6 +14,7 @@ const isLoading = ref(true)
 const errorMessage = ref('')
 const successMessage = ref('')
 const activeTab = ref('wedstrijden')
+const teamBreakdownModal = ref(null)
 let notificationTimeoutId = null
 
 const crosses = ref([])
@@ -216,25 +217,38 @@ function isExcludedFromTeamQualification(associationKey) {
   )
 }
 
-function parseTimeToSeconds(timeText) {
-  if (!timeText) {
-    return null
+function openTeamBreakdown(row, categoryLabel, isCombinedCategory, cross, crossIndex) {
+  const details = row.detailsPerCross?.[crossIndex] || null
+  if (!details) {
+    return
   }
 
-  const match = String(timeText).trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
-  if (!match) {
-    return null
+  teamBreakdownModal.value = {
+    categoryLabel,
+    association: row.association,
+    crossName: cross.name,
+    crossDate: formatDate(cross.date),
+    isCombinedCategory,
+    score: row.pointsPerCross[crossIndex],
+    participants: details.participants,
+  }
+}
+
+function closeTeamBreakdown() {
+  teamBreakdownModal.value = null
+}
+
+function participantDisplayName(participant, isCombinedCategory) {
+  if (!isCombinedCategory) {
+    return participant.name
   }
 
-  const first = Number.parseInt(match[1], 10)
-  const second = Number.parseInt(match[2], 10)
-  const third = match[3] ? Number.parseInt(match[3], 10) : null
-
-  if (third === null) {
-    return first * 60 + second
+  const ageMatch = participant.sourceCategory?.match(/U(20|18)\b/)
+  if (!ageMatch) {
+    return participant.name
   }
 
-  return first * 3600 + second * 60 + third
+  return `${participant.name} (U${ageMatch[1]})`
 }
 
 async function refreshData() {
@@ -1104,36 +1118,15 @@ const teamStandingsPerCategory = computed(() => {
     const rowsByAssociation = new Map()
     const relevant = normalizedResults.value.filter((result) => config.sourceCategories.includes(result.category))
 
-    const effectiveEntries = []
-    for (const cross of crosses.value) {
-      const rowsInCross = relevant
-        .filter((result) => result.crossId === cross.id)
-        .map((result) => ({
-          crossId: result.crossId,
-          associationKey: result.associationKey,
-          association: result.association,
-          timeSeconds: parseTimeToSeconds(result.time),
-        }))
-        .filter((row) => row.timeSeconds !== null)
-        .sort((left, right) => left.timeSeconds - right.timeSeconds)
-
-      let previousTime = null
-      let previousRank = 0
-      rowsInCross.forEach((row, index) => {
-        const rank = previousTime !== null && row.timeSeconds === previousTime
-          ? previousRank
-          : index + 1
-        previousTime = row.timeSeconds
-        previousRank = rank
-
-        effectiveEntries.push({
-          crossId: row.crossId,
-          associationKey: row.associationKey,
-          association: row.association,
-          effectivePoints: rank,
-        })
-      })
-    }
+    const effectiveEntries = relevant.map((result) => ({
+      crossId: result.crossId,
+      associationKey: result.associationKey,
+      association: result.association,
+      participantName: result.participantName,
+      sourceCategory: result.category,
+      time: result.time,
+      effectivePoints: result.points,
+    }))
 
     const perCrossAssociation = new Map()
     for (const entry of effectiveEntries) {
@@ -1154,13 +1147,18 @@ const teamStandingsPerCategory = computed(() => {
         continue
       }
 
-      const orderedPoints = associationEntries
-        .map((row) => row.effectivePoints)
-        .sort((left, right) => left - right)
+      const orderedEntries = associationEntries
+        .slice()
+        .sort((left, right) => {
+          if (left.effectivePoints !== right.effectivePoints) {
+            return left.effectivePoints - right.effectivePoints
+          }
+          return left.participantName.localeCompare(right.participantName, 'nl')
+        })
 
-      const hasMinimumThree = orderedPoints.length >= 3
+      const hasMinimumThree = orderedEntries.length >= 3
       const score = hasMinimumThree
-        ? orderedPoints.slice(0, 3).reduce((sum, points) => sum + points, 0)
+        ? orderedEntries.slice(0, 3).reduce((sum, entry) => sum + entry.effectivePoints, 0)
         : null
 
       const associationName = associationEntries.find((row) => row.association)?.association || '-'
@@ -1171,6 +1169,7 @@ const teamStandingsPerCategory = computed(() => {
           associationKey,
           association: associationName,
           pointsPerCross: Array(crosses.value.length).fill(null),
+          detailsPerCross: Array(crosses.value.length).fill(null),
           starts: 0,
           total: 0,
           place: null,
@@ -1182,6 +1181,18 @@ const teamStandingsPerCategory = computed(() => {
       const row = rowsByAssociation.get(associationKey)
       row.association = row.association || associationName
       row.pointsPerCross[crossPosition] = score
+      row.detailsPerCross[crossPosition] = score === null
+        ? null
+        : {
+            participants: orderedEntries
+              .slice(0, 3)
+              .map((entry) => ({
+                name: entry.participantName || '-',
+                sourceCategory: entry.sourceCategory || '',
+                points: entry.effectivePoints,
+                time: entry.time || '-',
+              })),
+          }
     }
 
     const rows = Array.from(rowsByAssociation.values())
@@ -1257,10 +1268,10 @@ onMounted(() => {
     <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
       <div class="d-flex flex-column gap-2">
         <h1 class="h3 mb-0">
-          Jeugdcross Klassement
+          Jeugdcross competitie
         </h1>
         <p class="text-secondary mb-0">
-          Individueel klassement op basis van punten per cross (1e plaats = 1 punt).
+          Upload wedstrijduitslagen, controleer conflicten en volg het individuele en ploegenklassement.
         </p>
       </div>
       <button
@@ -1413,6 +1424,14 @@ onMounted(() => {
       </template>
 
       <template v-else-if="activeTab === 'klassement'">
+        <section class="card shadow-sm mb-4">
+          <div class="card-body">
+            <p class="mb-0">
+              Groen gemarkeerd = geplaatst voor de finale.
+            </p>
+          </div>
+        </section>
+
         <section
           v-if="pendingNameConflicts.length > 0"
           class="card shadow-sm mb-4"
@@ -1555,14 +1574,6 @@ onMounted(() => {
               <h3 class="h6 mb-3">
                 {{ category }}
               </h3>
-              <p class="small text-secondary mb-3">
-                <template v-if="canHighlightFinalists">
-                  Groen gemarkeerd = geplaatst voor de finale.
-                </template>
-                <template v-else>
-                  Finale-markering verschijnt zodra de 3 wedstrijd-uitslagen zijn geupload.
-                </template>
-              </p>
               <div class="table-responsive">
                 <table class="table table-striped table-sm align-middle">
                   <thead>
@@ -1621,6 +1632,15 @@ onMounted(() => {
       </template>
 
       <template v-else>
+        <section class="card shadow-sm mb-4">
+          <div class="card-body">
+            <p class="mb-0">
+              Groen gemarkeerde ploegen hebben zich geplaatst voor de finale en mogen eventueel aangevuld worden tot 4 lopers,
+              indien die aan minstens 2 wedstrijden meegedaan hebben (zie competitiereglement art 16.b).
+            </p>
+          </div>
+        </section>
+
         <section class="d-flex flex-column gap-4">
           <article
             v-for="config in TEAM_CATEGORY_CONFIG"
@@ -1631,14 +1651,6 @@ onMounted(() => {
               <h3 class="h6 mb-3">
                 {{ config.label }}
               </h3>
-              <p class="small text-secondary mb-3">
-                <template v-if="canHighlightFinalists">
-                  Groen gemarkeerd = geplaatst voor de finale.
-                </template>
-                <template v-else>
-                  Finale-markering verschijnt zodra de 3 wedstrijd-uitslagen zijn geupload.
-                </template>
-              </p>
               <div class="table-responsive">
                 <table class="table table-striped table-sm align-middle">
                   <thead>
@@ -1668,7 +1680,15 @@ onMounted(() => {
                         v-for="(points, index) in row.pointsPerCross"
                         :key="`${row.associationKey}-${index}`"
                       >
-                        {{ points ?? '-' }}
+                        <button
+                          v-if="points !== null"
+                          class="btn btn-link btn-sm p-0 text-decoration-none"
+                          type="button"
+                          @click="openTeamBreakdown(row, config.label, config.sourceCategories.length > 1, crosses[index], index)"
+                        >
+                          {{ points }}
+                        </button>
+                        <span v-else>-</span>
                       </td>
                       <td class="fw-semibold">
                         {{ row.total }}
@@ -1690,5 +1710,74 @@ onMounted(() => {
         </section>
       </template>
     </template>
+
+    <div
+      v-if="teamBreakdownModal"
+      class="modal d-block"
+      tabindex="-1"
+      style="background-color: rgba(0, 0, 0, 0.45);"
+      @click.self="closeTeamBreakdown"
+    >
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              Ploegpunten Uitleg
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              aria-label="Close"
+              @click="closeTeamBreakdown"
+            />
+          </div>
+          <div class="modal-body">
+            <p class="mb-1">
+              <strong>Categorie:</strong> {{ teamBreakdownModal.categoryLabel }}
+            </p>
+            <p class="mb-1">
+              <strong>Vereniging:</strong> {{ teamBreakdownModal.association }}
+            </p>
+            <p class="mb-1">
+              <strong>Wedstrijd:</strong> {{ teamBreakdownModal.crossName }} ({{ teamBreakdownModal.crossDate }})
+            </p>
+            <p class="mb-3">
+              <strong>Ploegscore:</strong> {{ teamBreakdownModal.score }}
+            </p>
+
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>Deelnemer</th>
+                    <th>Punten</th>
+                    <th>Tijd</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="participant in teamBreakdownModal.participants"
+                    :key="`${participant.name}-${participant.time}-${participant.points}`"
+                  >
+                    <td>{{ participantDisplayName(participant, teamBreakdownModal.isCombinedCategory) }}</td>
+                    <td>{{ participant.points }}</td>
+                    <td>{{ participant.time }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              @click="closeTeamBreakdown"
+            >
+              Sluiten
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </main>
 </template>
