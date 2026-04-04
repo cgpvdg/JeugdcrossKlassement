@@ -163,3 +163,13 @@ export async function getDatabase() {
 
   return dbPromise
 }
+
+export async function resetDatabase() {
+  if (!dbPromise) {
+    return
+  }
+
+  const db = await dbPromise
+  await db.remove()
+  dbPromise = null
+}

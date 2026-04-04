@@ -1,10 +1,11 @@
 <script setup>
 import { computed, markRaw, onMounted, ref, shallowRef } from 'vue'
 import { CATEGORY_ORDER } from './categories.js'
-import { createCrossId, getDatabase } from './db.js'
+import { getDatabase, resetDatabase } from './db.js'
 import {
   decodeTextFileFromArrayBuffer,
   normalizeParticipantKey,
+  parseCrossMetadata,
   parseCrossResults,
 } from './parser.js'
 
@@ -12,38 +13,38 @@ const db = shallowRef(null)
 const isLoading = ref(true)
 const errorMessage = ref('')
 const successMessage = ref('')
+const activeTab = ref('wedstrijden')
+let notificationTimeoutId = null
 
 const crosses = ref([])
 const results = ref([])
 const participantDecisions = ref([])
 
-const crossForm = ref({
-  name: '',
-  association: '',
-  date: '',
-})
-
-const defaultCrosses = [
-  {
-    name: '1e Jeugdcrosscompetitie Regio 1-5',
-    association: 'Castricum',
-    date: '2025-11-22',
-  },
-  {
-    name: '2e Jeugdcrosscompetitie AVW',
-    association: 'Wieringerwerf',
-    date: '2026-01-17',
-  },
-  {
-    name: '3e Crosscompetitie Poule Noord',
-    association: 'Heiloo',
-    date: '2026-02-07',
-  },
-]
-
 function resetMessages() {
+  if (notificationTimeoutId) {
+    clearTimeout(notificationTimeoutId)
+    notificationTimeoutId = null
+  }
   errorMessage.value = ''
   successMessage.value = ''
+}
+
+function showSuccess(message) {
+  resetMessages()
+  successMessage.value = message
+  notificationTimeoutId = setTimeout(() => {
+    successMessage.value = ''
+    notificationTimeoutId = null
+  }, 5000)
+}
+
+function showError(message) {
+  resetMessages()
+  errorMessage.value = message
+  notificationTimeoutId = setTimeout(() => {
+    errorMessage.value = ''
+    notificationTimeoutId = null
+  }, 5000)
 }
 
 function formatDate(dateText) {
@@ -167,66 +168,71 @@ async function refreshData() {
   participantDecisions.value = decisionDocs.map((doc) => doc.toJSON())
 }
 
-async function ensureDefaultCrosses() {
-  const existing = await db.value.crosses.find().exec()
-  if (existing.length > 0) {
-    return
-  }
-
-  await db.value.crosses.bulkInsert(defaultCrosses.map((cross, index) => ({
-    id: `default-cross-${index + 1}`,
-    ...cross,
-    createdAt: new Date().toISOString(),
-  })))
-}
-
 async function init() {
   try {
     db.value = markRaw(await getDatabase())
-    await ensureDefaultCrosses()
     await refreshData()
   }
   catch (error) {
-    errorMessage.value = `Initialisatie mislukt: ${error instanceof Error ? error.message : String(error)}`
+    showError(`Initialisatie mislukt: ${error instanceof Error ? error.message : String(error)}`)
   }
   finally {
     isLoading.value = false
   }
 }
 
-async function addCross() {
+async function resetAllData() {
   resetMessages()
-
-  if (!crossForm.value.name || !crossForm.value.association || !crossForm.value.date) {
-    errorMessage.value = 'Vul naam, vereniging en datum in.'
+  const shouldReset = window.confirm(
+    'Weet je zeker dat je alles wilt verwijderen? Dit wist alle crossen, uitslagen, naamkeuzes en de lokale database.',
+  )
+  if (!shouldReset) {
     return
   }
 
-  const newCross = {
-    id: createCrossId(),
-    name: crossForm.value.name.trim(),
-    association: crossForm.value.association.trim(),
-    date: crossForm.value.date,
-    createdAt: new Date().toISOString(),
+  try {
+    await resetDatabase()
+    db.value = markRaw(await getDatabase())
+    crosses.value = []
+    results.value = []
+    participantDecisions.value = []
+    await refreshData()
+    showSuccess('Alles is verwijderd. Je kunt nu schoon starten.')
+  }
+  catch (error) {
+    showError(`Reset mislukt: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+async function removeCross(cross) {
+  resetMessages()
+
+  const shouldDelete = window.confirm(
+    `Weet je zeker dat je "${cross.name}" volledig wilt verwijderen? Dit verwijdert ook alle geuploade uitslagen voor deze wedstrijd.`,
+  )
+  if (!shouldDelete) {
+    return
   }
 
-  await db.value.crosses.insert(newCross)
+  const resultDocs = await db.value.results.find({ selector: { crossId: cross.id } }).exec()
+  if (resultDocs.length > 0) {
+    await db.value.results.bulkRemove(resultDocs.map((doc) => doc.id))
+  }
+
+  const crossDoc = await db.value.crosses.findOne({ selector: { id: cross.id } }).exec()
+  if (crossDoc) {
+    await crossDoc.remove()
+  }
+
   await refreshData()
-
-  crossForm.value = {
-    name: '',
-    association: '',
-    date: '',
-  }
-
-  successMessage.value = 'Cross toegevoegd.'
+  showSuccess(`Wedstrijd "${cross.name}" verwijderd.`)
 }
 
 async function clearCrossResults(cross, showSuccessMessage = true) {
   const docs = await db.value.results.find({ selector: { crossId: cross.id } }).exec()
   if (docs.length === 0) {
     if (showSuccessMessage) {
-      successMessage.value = `Geen uitslag gevonden voor ${cross.name}.`
+      showSuccess(`Geen uitslag gevonden voor ${cross.name}.`)
     }
     return
   }
@@ -235,11 +241,29 @@ async function clearCrossResults(cross, showSuccessMessage = true) {
   await refreshData()
 
   if (showSuccessMessage) {
-    successMessage.value = `Uitslag verwijderd voor ${cross.name}.`
+    showSuccess(`Uitslag verwijderd voor ${cross.name}.`)
   }
 }
 
-async function onFileSelected(event, cross) {
+function normalizeCrossIdentity(value) {
+  return normalizeParticipantKey(value || '').replace(/\s+/g, ' ')
+}
+
+function isSameCross(existingCross, metadata) {
+  if (existingCross.date !== metadata.date) {
+    return false
+  }
+
+  const sameAssociation
+    = normalizeCrossIdentity(existingCross.association) === normalizeCrossIdentity(metadata.association)
+  const sameName = normalizeCrossIdentity(existingCross.name) === normalizeCrossIdentity(metadata.name)
+
+  return (
+    sameAssociation || sameName
+  )
+}
+
+async function onCompetitionFileSelected(event) {
   resetMessages()
 
   const file = event.target.files?.[0]
@@ -248,28 +272,58 @@ async function onFileSelected(event, cross) {
   }
 
   try {
-    const hasExisting = (await db.value.results.find({ selector: { crossId: cross.id } }).exec()).length > 0
-    if (hasExisting) {
-      const shouldReplace = window.confirm('Er bestaat al een uitslag voor deze cross. Wil je die vervangen?')
-      if (!shouldReplace) {
-        event.target.value = ''
-        return
-      }
-    }
-
     const arrayBuffer = await file.arrayBuffer()
     const text = decodeTextFileFromArrayBuffer(arrayBuffer)
+    const metadata = parseCrossMetadata(text)
     const parsedEntries = parseCrossResults(text)
 
     if (parsedEntries.length === 0) {
       throw new Error('Geen herkenbare uitslagregels gevonden in dit bestand.')
     }
 
-    await clearCrossResults(cross, false)
+    const existingCross = crosses.value.find((cross) => isSameCross(cross, metadata))
+    let crossToUse = existingCross
+
+    if (!crossToUse && crosses.value.length >= 3) {
+      throw new Error('Maximum van 3 verschillende crossen bereikt.')
+    }
+
+    if (crossToUse) {
+      const shouldReplace = window.confirm(
+        `Wedstrijd bestaat al (${crossToUse.name}, ${formatDate(crossToUse.date)}). Oude uitslag vervangen met nieuwe upload?`,
+      )
+      if (!shouldReplace) {
+        event.target.value = ''
+        return
+      }
+    }
+
+    if (!crossToUse) {
+      const insertResult = await db.value.crosses.insert({
+        id: `cross-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: metadata.name,
+        association: metadata.association,
+        date: metadata.date,
+        createdAt: new Date().toISOString(),
+      })
+      crossToUse = insertResult.toJSON()
+    }
+    else {
+      const crossDoc = await db.value.crosses.findOne({ selector: { id: crossToUse.id } }).exec()
+      if (crossDoc) {
+        await crossDoc.patch({
+          name: metadata.name,
+          association: metadata.association,
+          date: metadata.date,
+        })
+      }
+    }
+
+    await clearCrossResults(crossToUse, false)
 
     await db.value.results.bulkInsert(parsedEntries.map((entry, entryIndex) => ({
-      id: `${cross.id}::${sanitizeForId(entry.category)}::${entry.participantKey}::${entry.rank}::${entryIndex}`,
-      crossId: cross.id,
+      id: `${crossToUse.id}::${sanitizeForId(entry.category)}::${entry.participantKey}::${entry.rank}::${entryIndex}`,
+      crossId: crossToUse.id,
       category: entry.category,
       rank: entry.rank,
       points: entry.points,
@@ -280,10 +334,10 @@ async function onFileSelected(event, cross) {
     })))
 
     await refreshData()
-    successMessage.value = `${parsedEntries.length} resultaten verwerkt voor ${cross.name}.`
+    showSuccess(`${parsedEntries.length} resultaten verwerkt voor ${metadata.name} (${formatDate(metadata.date)}).`)
   }
   catch (error) {
-    errorMessage.value = `Upload mislukt: ${error instanceof Error ? error.message : String(error)}`
+    showError(`Upload mislukt: ${error instanceof Error ? error.message : String(error)}`)
   }
   finally {
     event.target.value = ''
@@ -527,7 +581,7 @@ async function chooseSameParticipant(conflict, preferredSide) {
   })
 
   await refreshData()
-  successMessage.value = `Samengevoegd als dezelfde deelnemer: ${canonicalName}.`
+  showSuccess(`Samengevoegd als dezelfde deelnemer: ${canonicalName}.`)
 }
 
 async function chooseDifferentParticipants(conflict) {
@@ -545,7 +599,7 @@ async function chooseDifferentParticipants(conflict) {
   })
 
   await refreshData()
-  successMessage.value = 'Gemarkeerd als aparte deelnemers.'
+  showSuccess('Gemarkeerd als aparte deelnemers.')
 }
 
 const standingsPerCategory = computed(() => {
@@ -601,10 +655,19 @@ const standingsPerCategory = computed(() => {
     const rows = Array.from(participants.values())
     for (const row of rows) {
       row.starts = row.pointsPerCross.filter((value) => value !== null).length
-      row.bonus = row.starts >= 3 ? 5 : 0
-      row.total = row.rawTotal - row.bonus
       row.eligibleForPlacement = row.starts >= 2
       row.place = null
+      row.bonus = 0
+      row.total = row.rawTotal
+      row.isQualifiedForFinal = false
+    }
+
+    const classifiedRows = rows.filter((row) => row.eligibleForPlacement)
+    const bonusForCategory = rows.length <= 10 ? 3 : 5
+
+    for (const row of rows) {
+      row.bonus = row.starts >= 3 ? bonusForCategory : 0
+      row.total = row.rawTotal - row.bonus
     }
 
     rows.sort((left, right) => {
@@ -627,26 +690,19 @@ const standingsPerCategory = computed(() => {
       }
       row.place = placeCounter
       placeCounter += 1
-      row.isQualifiedForFinal = false
     }
 
-    const classifiedRows = rows.filter((row) => row.eligibleForPlacement)
-    const baseFinalists = baseFinalistsCount(classifiedRows.length)
+    const rankedClassifiedRows = rows.filter((row) => row.eligibleForPlacement)
+    const baseFinalists = baseFinalistsCount(rankedClassifiedRows.length)
 
-    if (baseFinalists > 0 && classifiedRows.length > 0) {
-      const cutoffIndex = Math.min(baseFinalists, classifiedRows.length) - 1
-      const cutoffTotal = classifiedRows[cutoffIndex].total
+    if (baseFinalists > 0 && rankedClassifiedRows.length > 0) {
+      const cutoffIndex = Math.min(baseFinalists, rankedClassifiedRows.length) - 1
+      const cutoffTotal = rankedClassifiedRows[cutoffIndex].total
 
-      for (const row of classifiedRows) {
+      for (const row of rankedClassifiedRows) {
         if (row.total <= cutoffTotal) {
           row.isQualifiedForFinal = true
         }
-      }
-    }
-
-    for (const row of rows) {
-      if (row.isQualifiedForFinal !== true) {
-        row.isQualifiedForFinal = false
       }
     }
     rowsByCategory.set(category, rows)
@@ -662,13 +718,22 @@ onMounted(() => {
 
 <template>
   <main class="container py-4 py-md-5">
-    <div class="d-flex flex-column gap-2 mb-4">
-      <h1 class="h3 mb-0">
-        Jeugdcross Klassement
-      </h1>
-      <p class="text-secondary mb-0">
-        Individueel klassement op basis van punten per cross (1e plaats = 1 punt).
-      </p>
+    <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
+      <div class="d-flex flex-column gap-2">
+        <h1 class="h3 mb-0">
+          Jeugdcross Klassement
+        </h1>
+        <p class="text-secondary mb-0">
+          Individueel klassement op basis van punten per cross (1e plaats = 1 punt).
+        </p>
+      </div>
+      <button
+        class="btn btn-outline-danger btn-sm"
+        type="button"
+        @click="resetAllData"
+      >
+        Reset alles
+      </button>
     </div>
 
     <div
@@ -692,262 +757,255 @@ onMounted(() => {
         {{ successMessage }}
       </div>
 
-      <section class="card shadow-sm mb-4">
-        <div class="card-body">
-          <h2 class="h5 mb-3">
-            Cross Toevoegen
-          </h2>
-          <form
-            class="row g-2"
-            @submit.prevent="addCross"
+      <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+          <button
+            class="nav-link"
+            :class="{ active: activeTab === 'wedstrijden' }"
+            type="button"
+            @click="activeTab = 'wedstrijden'"
           >
-            <div class="col-md-4">
-              <input
-                v-model="crossForm.name"
-                class="form-control"
-                type="text"
-                placeholder="Naam cross"
-                required
-              >
-            </div>
-            <div class="col-md-4">
-              <input
-                v-model="crossForm.association"
-                class="form-control"
-                type="text"
-                placeholder="Vereniging"
-                required
-              >
-            </div>
-            <div class="col-md-3">
-              <input
-                v-model="crossForm.date"
-                class="form-control"
-                type="date"
-                required
-              >
-            </div>
-            <div class="col-md-1 d-grid">
-              <button
-                class="btn btn-primary"
-                type="submit"
-              >
-                Voeg toe
-              </button>
-            </div>
-          </form>
-        </div>
-      </section>
-
-      <section class="card shadow-sm mb-4">
-        <div class="card-body">
-          <h2 class="h5 mb-3">
-            Crossbeheer & Uploads
-          </h2>
-
-          <div
-            v-if="crosses.length === 0"
-            class="text-secondary"
+            Wedstrijden
+          </button>
+        </li>
+        <li class="nav-item">
+          <button
+            class="nav-link"
+            :class="{ active: activeTab === 'klassement' }"
+            type="button"
+            @click="activeTab = 'klassement'"
           >
-            Nog geen crossen aangemaakt.
-          </div>
+            Individueel klassement
+          </button>
+        </li>
+      </ul>
 
-          <div
-            v-else
-            class="table-responsive"
-          >
-            <table class="table align-middle">
-              <thead>
-                <tr>
-                  <th>Naam</th>
-                  <th>Vereniging</th>
-                  <th>Datum</th>
-                  <th>Resultaten</th>
-                  <th>Acties</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="cross in crosses"
-                  :key="cross.id"
-                >
-                  <td>{{ cross.name }}</td>
-                  <td>{{ cross.association }}</td>
-                  <td>{{ formatDate(cross.date) }}</td>
-                  <td>{{ resultCountPerCross.get(cross.id) || 0 }}</td>
-                  <td>
-                    <div class="d-flex flex-wrap gap-2">
-                      <label class="btn btn-sm btn-outline-primary mb-0">
-                        Upload uitslag
-                        <input
-                          class="d-none"
-                          type="file"
-                          accept=".txt,text/plain"
-                          @change="(event) => onFileSelected(event, cross)"
-                        >
-                      </label>
-                      <button
-                        class="btn btn-sm btn-outline-danger"
-                        type="button"
-                        @click="clearCrossResults(cross)"
-                      >
-                        Verwijder uitslag
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <section class="card shadow-sm mb-4">
-        <div class="card-body">
-          <h2 class="h5 mb-3">
-            Naamconflicten
-          </h2>
-          <p class="text-secondary mb-3">
-            Vergelijkbare namen binnen dezelfde categorie en vereniging. Kies of dit dezelfde deelnemer is of niet.
-          </p>
-
-          <div
-            v-if="pendingNameConflicts.length === 0"
-            class="text-secondary"
-          >
-            Geen open naamconflicten gevonden.
-          </div>
-
-          <div
-            v-else
-            class="table-responsive"
-          >
-            <table class="table table-sm align-middle">
-              <thead>
-                <tr>
-                  <th>Categorie</th>
-                  <th>Vereniging</th>
-                  <th>Naam A</th>
-                  <th>Naam B</th>
-                  <th>Gelijkenis</th>
-                  <th>Actie</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="conflict in pendingNameConflicts"
-                  :key="conflict.id"
-                >
-                  <td>{{ conflict.category }}</td>
-                  <td>{{ conflict.association }}</td>
-                  <td>{{ conflict.leftName }}</td>
-                  <td>{{ conflict.rightName }}</td>
-                  <td>{{ Math.round(conflict.similarity * 100) }}%</td>
-                  <td>
-                    <div class="d-flex flex-wrap gap-2">
-                      <button
-                        class="btn btn-sm btn-outline-success"
-                        type="button"
-                        @click="chooseSameParticipant(conflict, 'left')"
-                      >
-                        Zelfde als {{ conflict.leftName }}
-                      </button>
-                      <button
-                        class="btn btn-sm btn-outline-success"
-                        type="button"
-                        @click="chooseSameParticipant(conflict, 'right')"
-                      >
-                        Zelfde als {{ conflict.rightName }}
-                      </button>
-                      <button
-                        class="btn btn-sm btn-outline-secondary"
-                        type="button"
-                        @click="chooseDifferentParticipants(conflict)"
-                      >
-                        Aparte deelnemers
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <section class="d-flex flex-column gap-4">
-        <article
-          v-for="category in CATEGORY_ORDER"
-          :key="category"
-          class="card shadow-sm"
-        >
+      <template v-if="activeTab === 'wedstrijden'">
+        <section class="card shadow-sm mb-4">
           <div class="card-body">
-            <h3 class="h6 mb-3">
-              {{ category }}
-            </h3>
-            <p class="small text-secondary mb-3">
-              <template v-if="canHighlightFinalists">
-                Groen gemarkeerd = geplaatst voor de finale.
-              </template>
-              <template v-else>
-                Finale-markering verschijnt zodra de 3 wedstrijd-uitslagen zijn geupload.
-              </template>
+            <h2 class="h5 mb-3">
+              Wedstrijdupload
+            </h2>
+            <p class="text-secondary mb-3">
+              Upload direct een uitslagbestand. De wedstrijd wordt automatisch aangemaakt op basis van de kopregels.
             </p>
-            <div class="table-responsive">
-              <table class="table table-striped table-sm align-middle">
+            <p class="text-secondary small mb-3">
+              Maximaal 3 verschillende crossen. Bestaat een wedstrijd al, dan wordt de oude uitslag vervangen.
+            </p>
+            <label class="btn btn-primary mb-0">
+              Upload uitslag
+              <input
+                class="d-none"
+                type="file"
+                accept=".txt,text/plain"
+                @change="onCompetitionFileSelected"
+              >
+            </label>
+          </div>
+        </section>
+
+        <section class="card shadow-sm mb-4">
+          <div class="card-body">
+            <h2 class="h5 mb-3">
+              Crossbeheer & Uploads
+            </h2>
+
+            <div
+              v-if="crosses.length === 0"
+              class="text-secondary"
+            >
+              Nog geen crossen aangemaakt.
+            </div>
+
+            <div
+              v-else
+              class="table-responsive"
+            >
+              <table class="table align-middle">
                 <thead>
                   <tr>
-                    <th>Plaats</th>
                     <th>Naam</th>
                     <th>Vereniging</th>
-                    <th
-                      v-for="cross in crosses"
-                      :key="`${category}-${cross.id}`"
-                    >
-                      {{ formatDate(cross.date) }}
-                    </th>
-                    <th>Bonus</th>
-                    <th>Totaal</th>
+                    <th>Datum</th>
+                    <th>Resultaten</th>
+                    <th>Acties</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr
-                    v-for="row in standingsPerCategory.get(category) || []"
-                    :key="`${category}-${row.participantKey}`"
-                    :class="{ 'table-success': row.isQualifiedForFinal && canHighlightFinalists }"
+                    v-for="cross in crosses"
+                    :key="cross.id"
                   >
-                    <td class="fw-semibold">
-                      {{ row.place ?? '-' }}
-                    </td>
-                    <td>{{ row.participantName }}</td>
-                    <td>{{ row.association || '-' }}</td>
-                    <td
-                      v-for="(points, index) in row.pointsPerCross"
-                      :key="`${row.participantKey}-${index}`"
-                    >
-                      {{ points ?? '-' }}
-                    </td>
-                    <td class="fw-semibold">
-                      {{ row.bonus }}
-                    </td>
-                    <td class="fw-semibold">
-                      {{ row.total }}
-                    </td>
-                  </tr>
-                  <tr v-if="(standingsPerCategory.get(category) || []).length === 0">
-                    <td
-                      class="text-secondary"
-                      :colspan="5 + crosses.length"
-                    >
-                      Geen deelnemers voor deze categorie.
+                    <td>{{ cross.name }}</td>
+                    <td>{{ cross.association }}</td>
+                    <td>{{ formatDate(cross.date) }}</td>
+                    <td>{{ resultCountPerCross.get(cross.id) || 0 }}</td>
+                    <td>
+                      <div class="d-flex flex-wrap gap-2">
+                        <button
+                          class="btn btn-sm btn-outline-danger"
+                          type="button"
+                          @click="clearCrossResults(cross)"
+                        >
+                          Verwijder uitslag
+                        </button>
+                        <button
+                          class="btn btn-sm btn-danger"
+                          type="button"
+                          @click="removeCross(cross)"
+                        >
+                          Verwijder wedstrijd
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
-        </article>
-      </section>
+        </section>
+      </template>
+
+      <template v-else>
+        <section
+          v-if="pendingNameConflicts.length > 0"
+          class="card shadow-sm mb-4"
+        >
+          <div class="card-body">
+            <h2 class="h5 mb-3">
+              Naamconflicten
+            </h2>
+            <p class="text-secondary mb-3">
+              Vergelijkbare namen binnen dezelfde categorie en vereniging. Kies of dit dezelfde deelnemer is of niet.
+            </p>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>Categorie</th>
+                    <th>Vereniging</th>
+                    <th>Naam A</th>
+                    <th>Naam B</th>
+                    <th>Gelijkenis</th>
+                    <th>Actie</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="conflict in pendingNameConflicts"
+                    :key="conflict.id"
+                  >
+                    <td>{{ conflict.category }}</td>
+                    <td>{{ conflict.association }}</td>
+                    <td>{{ conflict.leftName }}</td>
+                    <td>{{ conflict.rightName }}</td>
+                    <td>{{ Math.round(conflict.similarity * 100) }}%</td>
+                    <td>
+                      <div class="d-flex flex-wrap gap-2">
+                        <button
+                          class="btn btn-sm btn-outline-success"
+                          type="button"
+                          @click="chooseSameParticipant(conflict, 'left')"
+                        >
+                          Zelfde als {{ conflict.leftName }}
+                        </button>
+                        <button
+                          class="btn btn-sm btn-outline-success"
+                          type="button"
+                          @click="chooseSameParticipant(conflict, 'right')"
+                        >
+                          Zelfde als {{ conflict.rightName }}
+                        </button>
+                        <button
+                          class="btn btn-sm btn-outline-secondary"
+                          type="button"
+                          @click="chooseDifferentParticipants(conflict)"
+                        >
+                          Aparte deelnemers
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="d-flex flex-column gap-4">
+          <article
+            v-for="category in CATEGORY_ORDER"
+            :key="category"
+            class="card shadow-sm"
+          >
+            <div class="card-body">
+              <h3 class="h6 mb-3">
+                {{ category }}
+              </h3>
+              <p class="small text-secondary mb-3">
+                <template v-if="canHighlightFinalists">
+                  Groen gemarkeerd = geplaatst voor de finale.
+                </template>
+                <template v-else>
+                  Finale-markering verschijnt zodra de 3 wedstrijd-uitslagen zijn geupload.
+                </template>
+              </p>
+              <div class="table-responsive">
+                <table class="table table-striped table-sm align-middle">
+                  <thead>
+                    <tr>
+                      <th>Plaats</th>
+                      <th>Naam</th>
+                      <th>Vereniging</th>
+                      <th
+                        v-for="cross in crosses"
+                        :key="`${category}-${cross.id}`"
+                      >
+                        {{ formatDate(cross.date) }}
+                      </th>
+                      <th>Bonus</th>
+                      <th>Totaal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="row in standingsPerCategory.get(category) || []"
+                      :key="`${category}-${row.participantKey}`"
+                      :class="{ 'table-success': row.isQualifiedForFinal && canHighlightFinalists }"
+                    >
+                      <td class="fw-semibold">
+                        {{ row.place ?? '-' }}
+                      </td>
+                      <td>{{ row.participantName }}</td>
+                      <td>{{ row.association || '-' }}</td>
+                      <td
+                        v-for="(points, index) in row.pointsPerCross"
+                        :key="`${row.participantKey}-${index}`"
+                      >
+                        {{ points ?? '-' }}
+                      </td>
+                      <td class="fw-semibold">
+                        {{ row.bonus }}
+                      </td>
+                      <td class="fw-semibold">
+                        {{ row.total }}
+                      </td>
+                    </tr>
+                    <tr v-if="(standingsPerCategory.get(category) || []).length === 0">
+                      <td
+                        class="text-secondary"
+                        :colspan="5 + crosses.length"
+                      >
+                        Geen deelnemers voor deze categorie.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </article>
+        </section>
+      </template>
     </template>
   </main>
 </template>

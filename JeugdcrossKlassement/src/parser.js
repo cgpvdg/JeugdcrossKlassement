@@ -1,5 +1,20 @@
 import { CATEGORY_ORDER, categoryFromAgeAndGender } from './categories.js'
 
+const DUTCH_MONTHS = {
+  januari: 1,
+  februari: 2,
+  maart: 3,
+  april: 4,
+  mei: 5,
+  juni: 6,
+  juli: 7,
+  augustus: 8,
+  september: 9,
+  oktober: 10,
+  november: 11,
+  december: 12,
+}
+
 function normalizeLine(value) {
   return value
     .replace(/\u00a0/g, ' ')
@@ -143,5 +158,71 @@ export function decodeTextFileFromArrayBuffer(arrayBuffer) {
   }
   catch {
     return new TextDecoder('windows-1252').decode(bytes)
+  }
+}
+
+function parseDateFromFreeText(value) {
+  const normalized = normalizeLine(value).toLowerCase()
+  const textualMatch = normalized.match(/(\d{1,2})\s+([a-zà-ÿ]+)\s+(\d{4})/)
+  if (textualMatch) {
+    const day = Number.parseInt(textualMatch[1], 10)
+    const month = DUTCH_MONTHS[textualMatch[2]]
+    const year = Number.parseInt(textualMatch[3], 10)
+    if (month && day >= 1 && day <= 31) {
+      const isoDate = `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+      return isoDate
+    }
+  }
+
+  const numericMatch = normalized.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/)
+  if (numericMatch) {
+    const day = Number.parseInt(numericMatch[1], 10)
+    const month = Number.parseInt(numericMatch[2], 10)
+    const year = Number.parseInt(numericMatch[3], 10)
+    const isoDate = `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+    return isoDate
+  }
+
+  return null
+}
+
+export function parseCrossMetadata(rawText) {
+  const lines = rawText
+    .split(/\r?\n/)
+    .map((line) => normalizeLine(line))
+    .filter((line) => line.length > 0)
+
+  if (lines.length < 2) {
+    throw new Error('Bestand bevat te weinig informatie voor wedstrijdmetadata.')
+  }
+
+  const firstLine = lines[0]
+  if (!/^uitslagenlijst\b/i.test(firstLine)) {
+    throw new Error('Kopregel "Uitslagenlijst ..." niet gevonden.')
+  }
+
+  const name = firstLine.replace(/^uitslagenlijst\s*/i, '').trim()
+  if (!name) {
+    throw new Error('Wedstrijdnaam ontbreekt in de kopregel.')
+  }
+
+  const secondLine = lines[1]
+  const splitIndex = secondLine.indexOf(' - ')
+  const association = splitIndex >= 0 ? secondLine.slice(0, splitIndex).trim() : secondLine
+  const dateSource = splitIndex >= 0 ? secondLine.slice(splitIndex + 3) : secondLine
+  const date = parseDateFromFreeText(dateSource)
+
+  if (!association) {
+    throw new Error('Vereniging/plaats kon niet bepaald worden.')
+  }
+
+  if (!date) {
+    throw new Error('Datum kon niet bepaald worden uit de tweede regel.')
+  }
+
+  return {
+    name,
+    association,
+    date,
   }
 }
