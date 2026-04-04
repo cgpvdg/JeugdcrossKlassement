@@ -133,6 +133,26 @@ function similarity(left, right) {
   return 1 - distance / maxLength
 }
 
+function baseFinalistsCount(classifiedCount) {
+  if (classifiedCount <= 0) {
+    return 0
+  }
+
+  if (classifiedCount <= 3) {
+    return classifiedCount
+  }
+
+  if (classifiedCount === 4) {
+    return 3
+  }
+
+  if (classifiedCount <= 6) {
+    return 4
+  }
+
+  return Math.ceil(classifiedCount * 0.5)
+}
+
 async function refreshData() {
   if (!db.value) {
     return
@@ -277,6 +297,21 @@ const resultCountPerCross = computed(() => {
     counts.set(result.crossId, current + 1)
   }
   return counts
+})
+
+const canHighlightFinalists = computed(() => {
+  if (crosses.value.length < 3) {
+    return false
+  }
+
+  let uploadedResultsCount = 0
+  for (const cross of crosses.value) {
+    if ((resultCountPerCross.value.get(cross.id) || 0) > 0) {
+      uploadedResultsCount += 1
+    }
+  }
+
+  return uploadedResultsCount >= 3
 })
 
 const decisionsById = computed(() => {
@@ -547,6 +582,9 @@ const standingsPerCategory = computed(() => {
         participantName,
         association: result.association,
         pointsPerCross: Array(crosses.value.length).fill(null),
+        starts: 0,
+        rawTotal: 0,
+        bonus: 0,
         total: 0,
       })
     }
@@ -555,23 +593,62 @@ const standingsPerCategory = computed(() => {
     participantRow.participantName = participantName || participantRow.participantName
     participantRow.association = participantRow.association || result.association
     participantRow.pointsPerCross[crossPosition] = result.points
-    participantRow.total += result.points
+    participantRow.rawTotal += result.points
   }
 
   const rowsByCategory = new Map()
   for (const [category, participants] of byCategory) {
     const rows = Array.from(participants.values())
+    for (const row of rows) {
+      row.starts = row.pointsPerCross.filter((value) => value !== null).length
+      row.bonus = row.starts >= 3 ? 5 : 0
+      row.total = row.rawTotal - row.bonus
+      row.eligibleForPlacement = row.starts >= 2
+      row.place = null
+    }
+
     rows.sort((left, right) => {
+      if (left.eligibleForPlacement !== right.eligibleForPlacement) {
+        return left.eligibleForPlacement ? -1 : 1
+      }
       if (left.total !== right.total) {
         return left.total - right.total
       }
-      const leftStarts = left.pointsPerCross.filter((value) => value !== null).length
-      const rightStarts = right.pointsPerCross.filter((value) => value !== null).length
-      if (leftStarts !== rightStarts) {
-        return rightStarts - leftStarts
+      if (left.starts !== right.starts) {
+        return right.starts - left.starts
       }
       return left.participantName.localeCompare(right.participantName, 'nl')
     })
+
+    let placeCounter = 1
+    for (const row of rows) {
+      if (!row.eligibleForPlacement) {
+        continue
+      }
+      row.place = placeCounter
+      placeCounter += 1
+      row.isQualifiedForFinal = false
+    }
+
+    const classifiedRows = rows.filter((row) => row.eligibleForPlacement)
+    const baseFinalists = baseFinalistsCount(classifiedRows.length)
+
+    if (baseFinalists > 0 && classifiedRows.length > 0) {
+      const cutoffIndex = Math.min(baseFinalists, classifiedRows.length) - 1
+      const cutoffTotal = classifiedRows[cutoffIndex].total
+
+      for (const row of classifiedRows) {
+        if (row.total <= cutoffTotal) {
+          row.isQualifiedForFinal = true
+        }
+      }
+    }
+
+    for (const row of rows) {
+      if (row.isQualifiedForFinal !== true) {
+        row.isQualifiedForFinal = false
+      }
+    }
     rowsByCategory.set(category, rows)
   }
 
@@ -808,10 +885,19 @@ onMounted(() => {
             <h3 class="h6 mb-3">
               {{ category }}
             </h3>
+            <p class="small text-secondary mb-3">
+              <template v-if="canHighlightFinalists">
+                Groen gemarkeerd = geplaatst voor de finale.
+              </template>
+              <template v-else>
+                Finale-markering verschijnt zodra de 3 wedstrijd-uitslagen zijn geupload.
+              </template>
+            </p>
             <div class="table-responsive">
               <table class="table table-striped table-sm align-middle">
                 <thead>
                   <tr>
+                    <th>Plaats</th>
                     <th>Naam</th>
                     <th>Vereniging</th>
                     <th
@@ -820,6 +906,7 @@ onMounted(() => {
                     >
                       {{ formatDate(cross.date) }}
                     </th>
+                    <th>Bonus</th>
                     <th>Totaal</th>
                   </tr>
                 </thead>
@@ -827,7 +914,11 @@ onMounted(() => {
                   <tr
                     v-for="row in standingsPerCategory.get(category) || []"
                     :key="`${category}-${row.participantKey}`"
+                    :class="{ 'table-success': row.isQualifiedForFinal && canHighlightFinalists }"
                   >
+                    <td class="fw-semibold">
+                      {{ row.place ?? '-' }}
+                    </td>
                     <td>{{ row.participantName }}</td>
                     <td>{{ row.association || '-' }}</td>
                     <td
@@ -837,13 +928,16 @@ onMounted(() => {
                       {{ points ?? '-' }}
                     </td>
                     <td class="fw-semibold">
+                      {{ row.bonus }}
+                    </td>
+                    <td class="fw-semibold">
                       {{ row.total }}
                     </td>
                   </tr>
                   <tr v-if="(standingsPerCategory.get(category) || []).length === 0">
                     <td
                       class="text-secondary"
-                      :colspan="3 + crosses.length"
+                      :colspan="5 + crosses.length"
                     >
                       Geen deelnemers voor deze categorie.
                     </td>
