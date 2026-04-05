@@ -407,6 +407,84 @@ async function exportAllData() {
   }
 }
 
+function exportCompetitionOverview() {
+  resetMessages()
+  try {
+    const wedstrijdData = crosses.value.map((cross) => ({
+      id: cross.id,
+      naam: cross.name,
+      plaats: cross.association,
+      vereniging: crossVereniging(cross.id),
+      datum: cross.date,
+      resultatenAantal: resultCountPerCross.value.get(cross.id) || 0,
+    }))
+
+    const individueelKlassement = CATEGORY_ORDER.map((category) => {
+      const rows = (standingsPerCategory.value.get(category) || []).map((row) => ({
+        plaats: row.place,
+        naam: row.displayName,
+        vereniging: row.association || '',
+        starts: row.starts,
+        bonus: row.bonus,
+        totaal: row.total,
+        geplaatstVoorFinale: Boolean(row.isQualifiedForFinal && canHighlightFinalists.value),
+        wedstrijdPunten: crosses.value.map((cross, index) => ({
+          crossId: cross.id,
+          datum: cross.date,
+          punten: row.pointsPerCross[index],
+        })),
+      }))
+
+      return {
+        categorie: category,
+        rows,
+      }
+    })
+
+    const ploegenKlassement = TEAM_CATEGORY_CONFIG.map((config) => {
+      const isCombined = config.sourceCategories.length > 1
+      const rows = (teamStandingsPerCategory.value.get(config.label) || []).map((row) => ({
+        plaats: row.place,
+        vereniging: row.association || '',
+        starts: row.starts,
+        totaal: row.total,
+        geplaatstVoorFinale: Boolean(row.isQualifiedForFinal && canHighlightFinalists.value),
+        wedstrijdPunten: crosses.value.map((cross, index) => ({
+          crossId: cross.id,
+          datum: cross.date,
+          punten: row.pointsPerCross[index],
+          deelnemers: (row.detailsPerCross?.[index]?.participants || []).map((participant) => ({
+            naam: participantDisplayName(participant, isCombined),
+            bronCategorie: participant.sourceCategory || '',
+            punten: participant.points,
+            tijd: participant.time,
+          })),
+        })),
+      }))
+
+      return {
+        categorie: config.label,
+        rows,
+      }
+    })
+
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      version: 1,
+      wedstrijden: wedstrijdData,
+      individueelKlassement,
+      ploegenKlassement,
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    downloadTextFile(`jeugdcross-competitie-export-${timestamp}.json`, JSON.stringify(payload, null, 2))
+    showSuccess('Wedstrijdexport aangemaakt.')
+  }
+  catch (error) {
+    showError(`Wedstrijdexport mislukt: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
 async function importAllData(event) {
   resetMessages()
   const file = event.target.files?.[0]
@@ -1510,6 +1588,16 @@ onMounted(() => {
             Ploegenklassement
           </button>
         </li>
+        <li class="nav-item">
+          <button
+            class="nav-link"
+            :class="{ active: activeTab === 'exporteren' }"
+            type="button"
+            @click="activeTab = 'exporteren'"
+          >
+            Exporteren
+          </button>
+        </li>
         <li class="nav-item ms-auto">
           <button
             class="nav-link"
@@ -1939,6 +2027,26 @@ onMounted(() => {
               </div>
             </div>
           </article>
+        </section>
+      </template>
+
+      <template v-else-if="activeTab === 'exporteren'">
+        <section class="card shadow-sm mb-4">
+          <div class="card-body">
+            <h2 class="h5 mb-3">
+              Exporteren
+            </h2>
+            <p class="text-secondary mb-3">
+              Exporteer de volledige wedstrijd naar JSON inclusief wedstrijden, individueel klassement en ploegenklassement met puntopbouw.
+            </p>
+            <button
+              class="btn btn-primary"
+              type="button"
+              @click="exportCompetitionOverview"
+            >
+              Exporteer volledige wedstrijd
+            </button>
+          </div>
         </section>
       </template>
 
