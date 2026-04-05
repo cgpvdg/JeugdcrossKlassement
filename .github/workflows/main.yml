@@ -41,9 +41,10 @@ jobs:
 
       - name: Prepare combined Pages output
         run: |
-          mkdir public
-          cp -r JeugdcrossKlassement/dist public/JeugdcrossKlassement
-          cp -r JeugdcrossCompetitie/dist public/JeugdcrossCompetitie
+          mkdir -p public/Klassement
+          mkdir -p public/Competitie
+          cp -r JeugdcrossKlassement/dist/* public/Klassement/
+          cp -r JeugdcrossCompetitie/dist/* public/Competitie/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
