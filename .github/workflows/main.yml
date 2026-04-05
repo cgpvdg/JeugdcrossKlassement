@@ -43,6 +43,8 @@ jobs:
         run: |
           mkdir -p public/Klassement
           mkdir -p public/Competitie
+          mkdir -p public/klassement
+          mkdir -p public/competitie
           cp -r JeugdcrossKlassement/dist/* public/Klassement/
           cp -r JeugdcrossCompetitie/dist/* public/Competitie/
           echo "crosscompetitie.nl" > public/CNAME
@@ -52,7 +54,47 @@ jobs:
             <head>
               <meta charset="utf-8" />
               <script>
-                window.location.replace('/Competitie/')
+                const target = 'https://crosscompetitie.nl/Competitie/'
+                window.location.replace(target)
+              </script>
+              <title>Redirect</title>
+            </head>
+            <body></body>
+          </html>
+          EOF
+          cat > public/404.html << 'EOF'
+          <!doctype html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <script>
+                window.location.replace('https://crosscompetitie.nl/')
+              </script>
+              <title>Redirect</title>
+            </head>
+            <body></body>
+          </html>
+          EOF
+          cat > public/klassement/index.html << 'EOF'
+          <!doctype html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <script>
+                window.location.replace('https://crosscompetitie.nl/Klassement/')
+              </script>
+              <title>Redirect</title>
+            </head>
+            <body></body>
+          </html>
+          EOF
+          cat > public/competitie/index.html << 'EOF'
+          <!doctype html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <script>
+                window.location.replace('https://crosscompetitie.nl/Competitie/')
               </script>
               <title>Redirect</title>
             </head>
