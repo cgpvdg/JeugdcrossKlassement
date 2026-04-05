@@ -13,6 +13,11 @@ const reglementLink = computed(() => {
   const base = import.meta.env.BASE_URL || '/'
   return new URL(configured.replace(/^\//, ''), `http://local${base}`).pathname
 })
+
+const headerLogoUrl = computed(() => {
+  const base = import.meta.env.BASE_URL || '/'
+  return new URL('images/Logo.png', `http://local${base}`).pathname
+})
 </script>
 
 <template>
@@ -21,10 +26,11 @@ const reglementLink = computed(() => {
       <header class="topbar">
         <div class="brand">
           <div class="brand-icon">
-            JC
+            <img :src="headerLogoUrl" alt="Jeugdcross logo">
           </div>
           <div class="brand-title">
-            JEUGDCROSS COMPETITIE
+            <span class="brand-title-yellow">JEUGDCROSS</span>
+            <span class="brand-title-white">COMPETITIE</span>
           </div>
         </div>
         <nav class="nav-links">

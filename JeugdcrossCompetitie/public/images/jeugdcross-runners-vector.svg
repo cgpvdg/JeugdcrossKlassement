@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120">
+  <g fill="#ffffff">
+    <!-- back runner -->
+    <circle cx="60" cy="30" r="10"/>
+    <path d="M55 40 L65 40 L75 70 L65 70 Z"/>
+    <path d="M55 45 L40 65 L48 70 L60 55 Z"/>
+    <path d="M65 45 L80 60 L72 65 L60 55 Z"/>
+    <path d="M60 70 L50 95 L58 100 L68 75 Z"/>
+    <path d="M65 70 L80 95 L72 100 L60 75 Z"/>
+
+    <!-- front runner -->
+    <circle cx="110" cy="25" r="10"/>
+    <path d="M105 35 L115 35 L130 70 L115 70 Z"/>
+    <path d="M105 40 L90 65 L98 70 L110 50 Z"/>
+    <path d="M115 40 L140 55 L132 60 L110 50 Z"/>
+    <path d="M115 70 L105 100 L115 105 L125 75 Z"/>
+    <path d="M120 70 L145 100 L135 105 L115 75 Z"/>
+  </g>
+
+  <!-- yellow swoosh -->
+  <path d="M20 105 Q80 80 180 100" stroke="#FFD23F" stroke-width="6" fill="none" stroke-linecap="round"/>
+</svg>

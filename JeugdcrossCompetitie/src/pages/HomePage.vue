@@ -121,10 +121,10 @@ watch(
         </p>
         <div class="hero-actions">
           <RouterLink to="/individueel" class="btn-primary">
-            <i class="fa-solid fa-trophy" /> Bekijk individueel klassement
+            <i class="fa-solid fa-trophy" /> Individueel klassement
           </RouterLink>
           <RouterLink to="/ploegen" class="btn-primary btn-secondary">
-            <i class="fa-solid fa-users" /> Bekijk ploegen klassement
+            <i class="fa-solid fa-users" /> Ploegen klassement
           </RouterLink>
           <RouterLink to="/wedstrijden" class="btn-ghost">
             <i class="fa-regular fa-calendar-days" /> Wedstrijden

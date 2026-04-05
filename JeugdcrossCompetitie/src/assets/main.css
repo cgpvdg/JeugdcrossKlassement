@@ -61,20 +61,35 @@ a {
 }
 
 .brand-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  background: #fff;
-  color: var(--blue);
-  font-weight: 900;
-  display: grid;
-  place-items: center;
+  width: 74px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brand-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .brand-title {
   font-size: 34px;
   font-style: italic;
   font-weight: 900;
+  color: #fff;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.brand-title-yellow {
+  color: var(--yellow);
+}
+
+.brand-title-white {
   color: #fff;
 }
 
@@ -117,13 +132,14 @@ a {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 18px;
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
+  display: flex;
   min-height: 360px;
   overflow: hidden;
 }
 
 .hero-copy {
+  flex: 0 0 58%;
+  min-width: 0;
   padding: 42px 34px;
 }
 
@@ -179,9 +195,10 @@ a {
 
 .hero-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12px;
   margin-top: 28px;
+  align-items: center;
 }
 
 .btn-primary,
@@ -194,6 +211,7 @@ a {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  white-space: nowrap;
 }
 
 .btn-primary {
@@ -216,6 +234,11 @@ a {
 }
 
 .hero-visual {
+  flex: 1 1 42%;
+  min-width: 0;
+  margin-left: auto;
+  display: flex;
+  justify-content: flex-end;
   position: relative;
   background: #d9e5f5;
 }
@@ -224,7 +247,9 @@ a {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: right center;
   display: block;
+  transform: none;
 }
 
 .hero-visual::before {
@@ -586,7 +611,7 @@ th {
   }
 
   .hero {
-    grid-template-columns: 1fr;
+    display: block;
   }
 
   .hero-copy {
@@ -608,7 +633,11 @@ th {
   }
 
   .hero-visual {
-    min-height: 220px;
+    display: none;
+  }
+
+  .hero-actions {
+    flex-wrap: wrap;
   }
 
   .wedstrijd-grid {
