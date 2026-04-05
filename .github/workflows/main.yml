@@ -51,12 +51,12 @@ jobs:
           <html>
             <head>
               <meta charset="utf-8" />
-              <meta http-equiv="refresh" content="0; url=/Competitie/" />
+              <script>
+                window.location.replace('/Competitie/')
+              </script>
               <title>Redirect</title>
             </head>
-            <body>
-              <a href="/Competitie/">Ga naar Competitie</a>
-            </body>
+            <body></body>
           </html>
           EOF
 
