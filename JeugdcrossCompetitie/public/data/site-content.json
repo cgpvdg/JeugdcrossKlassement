@@ -31,8 +31,8 @@
       "vereniging": "AV Trias",
       "plaats": "Heiloo",
       "verenigingUrl": "https://avtrias.nl",
-      "tijdschemaUrl": "",
-      "uitslagUrl": ""
+      "tijdschemaUrl": "https://uitslagen.nl/uitslag?id=2026020703134",
+      "uitslagUrl": "https://uitslagen.nl/uitslag?id=2026020703134"
     },
     {
       "titel": "Finale jeugdcross competitie wedstrijd",
@@ -40,9 +40,9 @@
       "vereniging": "DOKEV",
       "plaats": "Anna Paulowna",
       "verenigingUrl": "https://www.atletiekvereniging-dokev.nl",
-      "tijdschemaUrl": "",
-      "uitslagUrl": "",
-      "ploegenUitslagUrl": ""
+      "tijdschemaUrl": "https://uitslagen.nl",
+      "uitslagUrl": "https://uitslagen.nl/2026030704160",
+      "ploegenUitslagUrl": "http://www.tigch.nl/cross/20252026/20260307_dokev/ploeg.htm"
     }
   ]
 }
