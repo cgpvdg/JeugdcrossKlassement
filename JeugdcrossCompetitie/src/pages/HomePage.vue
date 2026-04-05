@@ -18,7 +18,7 @@ const randomPloegen = ref([])
 
 const heroImageUrl = computed(() => {
   const base = import.meta.env.BASE_URL || '/'
-  return new URL('images/hero-runners.svg', `http://local${base}`).pathname
+  return new URL('images/Cross-kids.png', `http://local${base}`).pathname
 })
 
 const reglementLink = computed(() => {
