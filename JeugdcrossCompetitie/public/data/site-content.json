@@ -1,0 +1,28 @@
+{
+  "welkomTitel": "JEUGDCROSS COMPETITIE",
+  "welkomTekst": "Volg hier alle uitslagen, klassementen en informatie van het seizoen.",
+  "reglementUrl": "/docs/competitiereglement-v2.pdf",
+  "reglementLabel": "Reglement downloaden (PDF)",
+  "seizoenTitel": "Seizoen 2025-2026",
+  "seizoenTekst": "Volg alle updates van de Jeugdcross Competitie via deze pagina.",
+  "wedstrijduitslagen": [
+    {
+      "naam": "1e jeugdcross competitie - Castricum",
+      "datum": "2025-11-22",
+      "url": "https://uitslagen.nl/uitslag?id=2025112203111",
+      "label": "Bekijk uitslagen.nl"
+    },
+    {
+      "naam": "2e jeugdcross competitie - Wieringerwerf",
+      "datum": "2026-01-17",
+      "url": "https://uitslagen.nl/uitslag?id=2026011704140",
+      "label": "Bekijk uitslagen.nl"
+    },
+    {
+      "naam": "3e jeugdcross competitie - Heiloo",
+      "datum": "2026-02-07",
+      "url": "https://uitslagen.nl/uitslag?id=2026020703134",
+      "label": "Bekijk uitslagen.nl"
+    }
+  ]
+}
