@@ -72,6 +72,7 @@ a {
   display: flex;
   align-items: center;
   gap: 14px;
+  min-width: 0;
 }
 
 .brand-icon {
@@ -97,6 +98,8 @@ a {
   display: inline-flex;
   align-items: baseline;
   gap: 10px;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .brand-title-yellow {
@@ -608,6 +611,10 @@ th {
     margin-left: auto;
   }
 
+  .topbar {
+    padding: 14px 16px;
+  }
+
   .nav-links {
     width: 100%;
     display: none;
@@ -692,6 +699,30 @@ th {
 }
 
 @media (max-width: 640px) {
+  .topbar {
+    padding: 12px 10px;
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .brand-icon {
+    width: 52px;
+    height: 40px;
+  }
+
+  .brand-title {
+    font-size: 16px;
+    gap: 6px;
+  }
+
+  .menu-toggle {
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+  }
+
   .wedstrijd-grid {
     grid-template-columns: 1fr;
   }
