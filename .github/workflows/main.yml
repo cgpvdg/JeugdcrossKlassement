@@ -1,9 +1,9 @@
-name: Deploy Vue app to GitHub Pages
+name: Deploy Vue apps to GitHub Pages
 
 on:
   push:
     branches:
-      - master  # of main, afhankelijk van jouw repo
+      - master
 
 permissions:
   contents: read
@@ -23,18 +23,32 @@ jobs:
         with:
           node-version: 'lts/*'
 
-      - name: Install dependencies
+      - name: Install dependencies - Klassement
         run: npm install
         working-directory: JeugdcrossKlassement
 
-      - name: Build project
+      - name: Build Klassement
         run: npm run build
         working-directory: JeugdcrossKlassement
+
+      - name: Install dependencies - Competitie
+        run: npm install
+        working-directory: JeugdcrossCompetitie
+
+      - name: Build Competitie
+        run: npm run build
+        working-directory: JeugdcrossCompetitie
+
+      - name: Prepare combined Pages output
+        run: |
+          mkdir public
+          cp -r JeugdcrossKlassement/dist public/JeugdcrossKlassement
+          cp -r JeugdcrossCompetitie/dist public/JeugdcrossCompetitie
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: JeugdcrossKlassement/dist
+          path: public
 
   deploy:
     needs: build
