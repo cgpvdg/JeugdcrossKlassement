@@ -5,24 +5,44 @@
   "reglementLabel": "Reglement downloaden (PDF)",
   "seizoenTitel": "Seizoen 2025-2026",
   "seizoenTekst": "Volg alle updates van de Jeugdcross Competitie via deze pagina.",
-  "wedstrijduitslagen": [
+  "inschrijfformulierUrl": "/docs/inschrijfformulier.xlsx",
+  "wedstrijdOverzicht": [
     {
-      "naam": "1e jeugdcross competitie - Castricum",
+      "titel": "1e jeugdcross competitie wedstrijd",
       "datum": "2025-11-22",
-      "url": "https://uitslagen.nl/uitslag?id=2025112203111",
-      "label": "Bekijk uitslagen.nl"
+      "vereniging": "AV Castricum",
+      "plaats": "Castricum",
+      "verenigingUrl": "https://www.avcastricum.nl",
+      "tijdschemaUrl": "https://uitslagen.nl/uitslag?id=2025112203111",
+      "uitslagUrl": "https://uitslagen.nl/uitslag?id=2025112203111"
     },
     {
-      "naam": "2e jeugdcross competitie - Wieringerwerf",
+      "titel": "2e jeugdcross competitie wedstrijd",
       "datum": "2026-01-17",
-      "url": "https://uitslagen.nl/uitslag?id=2026011704140",
-      "label": "Bekijk uitslagen.nl"
+      "vereniging": "AV Wieringermeer",
+      "plaats": "Wieringerwerf",
+      "verenigingUrl": "https://www.avwieringermeer.nl",
+      "tijdschemaUrl": "https://uitslagen.nl/uitslag?id=2026011704140",
+      "uitslagUrl": "https://uitslagen.nl/uitslag?id=2026011704140"
     },
     {
-      "naam": "3e jeugdcross competitie - Heiloo",
+      "titel": "3e jeugdcross competitie wedstrijd",
       "datum": "2026-02-07",
-      "url": "https://uitslagen.nl/uitslag?id=2026020703134",
-      "label": "Bekijk uitslagen.nl"
+      "vereniging": "AV Trias",
+      "plaats": "Heiloo",
+      "verenigingUrl": "https://avtrias.nl",
+      "tijdschemaUrl": "https://uitslagen.nl/uitslag?id=2026020703134",
+      "uitslagUrl": "https://uitslagen.nl/uitslag?id=2026020703134"
+    },
+    {
+      "titel": "Finale jeugdcross competitie wedstrijd",
+      "datum": "2026-03-7",
+      "vereniging": "DOKEV",
+      "plaats": "Anna Paulowna",
+      "verenigingUrl": "https://www.atletiekvereniging-dokev.nl",
+      "tijdschemaUrl": "https://uitslagen.nl",
+      "uitslagUrl": "https://uitslagen.nl/2026030704160",
+      "ploegenUitslagUrl": "http://www.tigch.nl/cross/20252026/20260307_dokev/ploeg.htm"
     }
   ]
 }

@@ -71,12 +71,12 @@ onMounted(() => {
             <table>
               <thead>
                 <tr>
-                  <th>Plaats</th>
+                  <th class="col-center">Plaats</th>
                   <th>Vereniging</th>
-                  <th v-for="race in raceColumns" :key="race.id">
+                  <th v-for="race in raceColumns" :key="race.id" class="col-center">
                     {{ formatDate(race.datum) }}
                   </th>
-                  <th>Totaal</th>
+                  <th class="col-center">Totaal</th>
                 </tr>
               </thead>
               <tbody>
@@ -85,9 +85,9 @@ onMounted(() => {
                   :key="`${category.categorie}-${row.vereniging}-${row.totaal}`"
                   :class="{ qualified: row.geplaatstVoorFinale }"
                 >
-                  <td>{{ row.plaats ?? '-' }}</td>
+                  <td class="col-center">{{ row.plaats ?? '-' }}</td>
                   <td>{{ row.vereniging }}</td>
-                  <td v-for="point in row.wedstrijdPunten" :key="point.crossId">
+                  <td v-for="point in row.wedstrijdPunten" :key="point.crossId" class="col-center">
                     <button
                       v-if="canOpenBreakdown(point)"
                       type="button"
@@ -98,7 +98,7 @@ onMounted(() => {
                     </button>
                     <span v-else>{{ pointsValue(point.punten) }}</span>
                   </td>
-                  <td>{{ row.totaal }}</td>
+                  <td class="col-center col-total">{{ row.totaal }}</td>
                 </tr>
               </tbody>
             </table>

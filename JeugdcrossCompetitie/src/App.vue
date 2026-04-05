@@ -34,7 +34,7 @@ const reglementLink = computed(() => {
           <a :href="reglementLink" download="competitiereglement-v2.pdf">
             <i class="fa-regular fa-file-lines" /> Reglement
           </a>
-          <RouterLink :to="{ path: '/', hash: '#wedstrijden' }">
+          <RouterLink to="/wedstrijden">
             <i class="fa-solid fa-flag-checkered" /> Wedstrijden
           </RouterLink>
           <RouterLink to="/individueel">

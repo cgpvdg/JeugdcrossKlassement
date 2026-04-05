@@ -7,7 +7,8 @@ const siteContent = ref({
   welkomTekst: 'Volg hier alle uitslagen, klassementen en informatie van het seizoen.',
   reglementUrl: '/docs/competitiereglement-v2.pdf',
   reglementLabel: 'Reglement downloaden (PDF)',
-  wedstrijduitslagen: [],
+  inschrijfformulierUrl: '/docs/inschrijfformulier.xlsx',
+  wedstrijdOverzicht: [],
   seizoenTitel: 'Seizoen 2025-2026',
   seizoenTekst: 'Volg alle updates van de Jeugdcross Competitie via deze pagina.',
 })
