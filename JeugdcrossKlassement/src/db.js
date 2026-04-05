@@ -197,6 +197,54 @@ const crossAssociationDecisionSchema = {
   indexes: [['category', 'leftParticipantKey'], ['category', 'rightParticipantKey']],
 }
 
+const crossConfigSchema = {
+  title: 'cross config schema',
+  version: 0,
+  primaryKey: 'crossId',
+  type: 'object',
+  properties: {
+    crossId: {
+      type: 'string',
+      maxLength: 120,
+    },
+    vereniging: {
+      type: 'string',
+    },
+    updatedAt: {
+      type: 'string',
+    },
+  },
+  required: ['crossId', 'vereniging', 'updatedAt'],
+}
+
+const individualNameOverrideSchema = {
+  title: 'individual name override schema',
+  version: 0,
+  primaryKey: 'id',
+  type: 'object',
+  properties: {
+    id: {
+      type: 'string',
+      maxLength: 420,
+    },
+    category: {
+      type: 'string',
+    },
+    rowKey: {
+      type: 'string',
+      maxLength: 320,
+    },
+    displayName: {
+      type: 'string',
+    },
+    updatedAt: {
+      type: 'string',
+    },
+  },
+  required: ['id', 'category', 'rowKey', 'displayName', 'updatedAt'],
+  indexes: [['category', 'rowKey']],
+}
+
 let dbPromise = null
 
 export function createCrossId() {
@@ -222,6 +270,12 @@ export async function getDatabase() {
         },
         crossAssociationDecisions: {
           schema: crossAssociationDecisionSchema,
+        },
+        crossConfigs: {
+          schema: crossConfigSchema,
+        },
+        individualNameOverrides: {
+          schema: individualNameOverrideSchema,
         },
       })
       return db

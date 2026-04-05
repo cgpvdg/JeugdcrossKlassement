@@ -15,12 +15,15 @@ const errorMessage = ref('')
 const successMessage = ref('')
 const activeTab = ref('wedstrijden')
 const teamBreakdownModal = ref(null)
+const individualNameEditModal = ref(null)
 let notificationTimeoutId = null
 
 const crosses = ref([])
 const results = ref([])
 const participantDecisions = ref([])
 const crossAssociationDecisions = ref([])
+const crossConfigs = ref([])
+const individualNameOverrides = ref([])
 
 function resetMessages() {
   if (notificationTimeoutId) {
@@ -263,6 +266,63 @@ function participantDisplayName(participant, isCombinedCategory) {
   return `${participant.name} (U${ageMatch[1]})`
 }
 
+function individualNameOverrideKey(category, rowKey) {
+  return `${category}::${rowKey}`
+}
+
+function openIndividualNameEdit(category, row) {
+  individualNameEditModal.value = {
+    category,
+    rowKey: row.participantKey,
+    baseName: row.participantName,
+    value: row.displayName || row.participantName,
+  }
+}
+
+function closeIndividualNameEdit() {
+  individualNameEditModal.value = null
+}
+
+async function saveIndividualNameEdit() {
+  if (!individualNameEditModal.value) {
+    return
+  }
+
+  const modal = individualNameEditModal.value
+  const nextName = String(modal.value || '').trim()
+  if (!nextName) {
+    showError('Naam mag niet leeg zijn.')
+    return
+  }
+
+  const id = individualNameOverrideKey(modal.category, modal.rowKey)
+
+  try {
+    if (nextName === modal.baseName) {
+      const existing = await db.value.individualNameOverrides.findOne({ selector: { id } }).exec()
+      if (existing) {
+        await existing.remove()
+      }
+    }
+    else {
+      await db.value.individualNameOverrides.upsert({
+        id,
+        category: modal.category,
+        rowKey: modal.rowKey,
+        displayName: nextName,
+        updatedAt: new Date().toISOString(),
+      })
+    }
+
+    await refreshData()
+    closeIndividualNameEdit()
+    showSuccess('Naam bijgewerkt.')
+  }
+  catch (error) {
+    showError(`Naam wijzigen mislukt: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
 async function refreshData() {
   if (!db.value) {
     return
@@ -272,11 +332,15 @@ async function refreshData() {
   const resultDocs = await db.value.results.find().exec()
   const decisionDocs = await db.value.participantDecisions.find().exec()
   const crossAssociationDecisionDocs = await db.value.crossAssociationDecisions.find().exec()
+  const crossConfigDocs = await db.value.crossConfigs.find().exec()
+  const individualNameOverrideDocs = await db.value.individualNameOverrides.find().exec()
 
   crosses.value = crossDocs.map((doc) => doc.toJSON())
   results.value = resultDocs.map((doc) => doc.toJSON())
   participantDecisions.value = decisionDocs.map((doc) => doc.toJSON())
   crossAssociationDecisions.value = crossAssociationDecisionDocs.map((doc) => doc.toJSON())
+  crossConfigs.value = crossConfigDocs.map((doc) => doc.toJSON())
+  individualNameOverrides.value = individualNameOverrideDocs.map((doc) => doc.toJSON())
 }
 
 async function init() {
@@ -308,6 +372,8 @@ async function resetAllData() {
     results.value = []
     participantDecisions.value = []
     crossAssociationDecisions.value = []
+    crossConfigs.value = []
+    individualNameOverrides.value = []
     await refreshData()
     showSuccess('Alles is verwijderd. Je kunt nu schoon starten.')
   }
@@ -327,6 +393,8 @@ async function exportAllData() {
         results: results.value,
         participantDecisions: participantDecisions.value,
         crossAssociationDecisions: crossAssociationDecisions.value,
+        crossConfigs: crossConfigs.value,
+        individualNameOverrides: individualNameOverrides.value,
       },
     }
 
@@ -364,6 +432,10 @@ async function importAllData(event) {
     const importedCrossAssociationDecisions = Array.isArray(importedData.crossAssociationDecisions)
       ? importedData.crossAssociationDecisions
       : []
+    const importedCrossConfigs = Array.isArray(importedData.crossConfigs) ? importedData.crossConfigs : []
+    const importedIndividualNameOverrides = Array.isArray(importedData.individualNameOverrides)
+      ? importedData.individualNameOverrides
+      : []
 
     await resetDatabase()
     db.value = markRaw(await getDatabase())
@@ -379,6 +451,12 @@ async function importAllData(event) {
     }
     if (importedCrossAssociationDecisions.length > 0) {
       await db.value.crossAssociationDecisions.bulkInsert(importedCrossAssociationDecisions)
+    }
+    if (importedCrossConfigs.length > 0) {
+      await db.value.crossConfigs.bulkInsert(importedCrossConfigs)
+    }
+    if (importedIndividualNameOverrides.length > 0) {
+      await db.value.individualNameOverrides.bulkInsert(importedIndividualNameOverrides)
     }
 
     await refreshData()
@@ -412,8 +490,49 @@ async function removeCross(cross) {
     await crossDoc.remove()
   }
 
+  const configDoc = await db.value.crossConfigs.findOne({ selector: { crossId: cross.id } }).exec()
+  if (configDoc) {
+    await configDoc.remove()
+  }
+
   await refreshData()
   showSuccess(`Wedstrijd "${cross.name}" verwijderd.`)
+}
+
+const crossConfigById = computed(() => {
+  return new Map(crossConfigs.value.map((config) => [config.crossId, config]))
+})
+
+function crossVereniging(crossId) {
+  return crossConfigById.value.get(crossId)?.vereniging || ''
+}
+
+async function updateCrossData(crossId, patch) {
+  try {
+    const crossDoc = await db.value.crosses.findOne({ selector: { id: crossId } }).exec()
+    if (!crossDoc) {
+      return
+    }
+    await crossDoc.patch(patch)
+    await refreshData()
+  }
+  catch (error) {
+    showError(`Wijzigen wedstrijd mislukt: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+async function updateCrossVereniging(crossId, vereniging) {
+  try {
+    await db.value.crossConfigs.upsert({
+      crossId,
+      vereniging: String(vereniging || '').trim(),
+      updatedAt: new Date().toISOString(),
+    })
+    await refreshData()
+  }
+  catch (error) {
+    showError(`Wijzigen vereniging mislukt: ${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 async function clearCrossResults(cross, showSuccessMessage = true) {
@@ -431,24 +550,6 @@ async function clearCrossResults(cross, showSuccessMessage = true) {
   if (showSuccessMessage) {
     showSuccess(`Uitslag verwijderd voor ${cross.name}.`)
   }
-}
-
-function normalizeCrossIdentity(value) {
-  return normalizeParticipantKey(value || '').replace(/\s+/g, ' ')
-}
-
-function isSameCross(existingCross, metadata) {
-  if (existingCross.date !== metadata.date) {
-    return false
-  }
-
-  const sameAssociation
-    = normalizeCrossIdentity(existingCross.association) === normalizeCrossIdentity(metadata.association)
-  const sameName = normalizeCrossIdentity(existingCross.name) === normalizeCrossIdentity(metadata.name)
-
-  return (
-    sameAssociation || sameName
-  )
 }
 
 async function onCompetitionFileSelected(event) {
@@ -469,7 +570,7 @@ async function onCompetitionFileSelected(event) {
       throw new Error('Geen herkenbare uitslagregels gevonden in dit bestand.')
     }
 
-    const existingCross = crosses.value.find((cross) => isSameCross(cross, metadata))
+    const existingCross = crosses.value.find((cross) => cross.date === metadata.date)
     let crossToUse = existingCross
 
     if (!crossToUse && crosses.value.length >= 3) {
@@ -495,16 +596,6 @@ async function onCompetitionFileSelected(event) {
         createdAt: new Date().toISOString(),
       })
       crossToUse = insertResult.toJSON()
-    }
-    else {
-      const crossDoc = await db.value.crosses.findOne({ selector: { id: crossToUse.id } }).exec()
-      if (crossDoc) {
-        await crossDoc.patch({
-          name: metadata.name,
-          association: metadata.association,
-          date: metadata.date,
-        })
-      }
     }
 
     await clearCrossResults(crossToUse, false)
@@ -562,6 +653,10 @@ const decisionsById = computed(() => {
 
 const crossAssociationDecisionsById = computed(() => {
   return new Map(crossAssociationDecisions.value.map((decision) => [decision.id, decision]))
+})
+
+const individualNameOverridesByKey = computed(() => {
+  return new Map(individualNameOverrides.value.map((item) => [individualNameOverrideKey(item.category, item.rowKey), item.displayName]))
 })
 
 const mergeResolution = computed(() => {
@@ -1134,6 +1229,7 @@ const standingsPerCategory = computed(() => {
       row.baseTotal = 0
       row.total = 0
       row.isQualifiedForFinal = false
+      row.displayName = individualNameOverridesByKey.value.get(individualNameOverrideKey(category, row.participantKey)) || row.participantName
     }
 
     const bonusForCategory = rows.length <= 10 ? 3 : 5
@@ -1158,7 +1254,7 @@ const standingsPerCategory = computed(() => {
       if (left.starts !== right.starts) {
         return right.starts - left.starts
       }
-      return left.participantName.localeCompare(right.participantName, 'nl')
+      return left.displayName.localeCompare(right.displayName, 'nl')
     })
 
     let lastTotal = null
@@ -1435,6 +1531,15 @@ onMounted(() => {
             <p class="text-secondary mb-3">
               Upload direct een uitslagbestand. De wedstrijd wordt automatisch aangemaakt op basis van de kopregels.
             </p>
+            <p class="text-secondary mb-3">
+              Download het bronbestand via
+              <a
+                href="https://uitslagen.nl"
+                target="_blank"
+                rel="noopener noreferrer"
+              >uitslagen.nl</a>.
+              Kies daar onder <strong>Download</strong> voor <strong>Tekst-document</strong>, en upload dat bestand hier.
+            </p>
             <p class="text-secondary small mb-3">
               Maximaal 3 verschillende crossen. Bestaat een wedstrijd al, dan wordt de oude uitslag vervangen.
             </p>
@@ -1443,7 +1548,7 @@ onMounted(() => {
               <input
                 class="d-none"
                 type="file"
-                accept=".txt,text/plain"
+                accept=".txt"
                 @change="onCompetitionFileSelected"
               >
             </label>
@@ -1453,7 +1558,7 @@ onMounted(() => {
         <section class="card shadow-sm mb-4">
           <div class="card-body">
             <h2 class="h5 mb-3">
-              Crossbeheer & Uploads
+              Wedstrijdbeheer
             </h2>
 
             <div
@@ -1471,23 +1576,53 @@ onMounted(() => {
                 <thead>
                   <tr>
                     <th>Naam</th>
+                    <th>Plaats</th>
                     <th>Vereniging</th>
                     <th>Datum</th>
                     <th>Resultaten</th>
-                    <th>Acties</th>
+                    <th class="text-end" />
                   </tr>
                 </thead>
                 <tbody>
                   <tr
                     v-for="cross in crosses"
                     :key="cross.id"
-                  >
-                    <td>{{ cross.name }}</td>
-                    <td>{{ cross.association }}</td>
-                    <td>{{ formatDate(cross.date) }}</td>
-                    <td>{{ resultCountPerCross.get(cross.id) || 0 }}</td>
-                    <td>
-                      <div class="d-flex flex-wrap gap-2">
+                >
+                  <td>
+                    <input
+                      class="form-control form-control-sm"
+                      type="text"
+                      :value="cross.name"
+                      @change="(event) => updateCrossData(cross.id, { name: event.target.value })"
+                    >
+                  </td>
+                  <td>
+                    <input
+                      class="form-control form-control-sm"
+                      type="text"
+                      :value="cross.association"
+                      @change="(event) => updateCrossData(cross.id, { association: event.target.value })"
+                    >
+                  </td>
+                  <td>
+                    <input
+                      class="form-control form-control-sm"
+                      type="text"
+                      :value="crossVereniging(cross.id)"
+                      @change="(event) => updateCrossVereniging(cross.id, event.target.value)"
+                    >
+                  </td>
+                  <td>
+                    <input
+                      class="form-control form-control-sm"
+                      type="date"
+                      :value="cross.date"
+                      @change="(event) => updateCrossData(cross.id, { date: event.target.value })"
+                    >
+                  </td>
+                  <td>{{ resultCountPerCross.get(cross.id) || 0 }}</td>
+                    <td class="text-end">
+                      <div class="d-flex flex-wrap gap-2 justify-content-end">
                         <button
                           class="btn btn-sm btn-outline-danger"
                           type="button"
@@ -1686,10 +1821,18 @@ onMounted(() => {
                       :key="`${category}-${row.participantKey}`"
                       :class="{ 'table-success': row.isQualifiedForFinal && canHighlightFinalists }"
                     >
-                      <td class="fw-semibold">
-                        {{ row.place ?? '-' }}
-                      </td>
-                      <td>{{ row.participantName }}</td>
+                    <td class="fw-semibold">
+                      {{ row.place ?? '-' }}
+                    </td>
+                    <td>
+                      <button
+                        class="btn btn-link btn-sm p-0 text-decoration-none"
+                        type="button"
+                        @click="openIndividualNameEdit(category, row)"
+                      >
+                        {{ row.displayName }}
+                      </button>
+                    </td>
                       <td>{{ row.association || '-' }}</td>
                       <td
                         v-for="(points, index) in row.pointsPerCross"
@@ -1901,6 +2044,59 @@ onMounted(() => {
               @click="closeTeamBreakdown"
             >
               Sluiten
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="individualNameEditModal"
+      class="modal d-block"
+      tabindex="-1"
+      style="background-color: rgba(0, 0, 0, 0.45);"
+      @click.self="closeIndividualNameEdit"
+    >
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              Naam deelnemer wijzigen
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              aria-label="Close"
+              @click="closeIndividualNameEdit"
+            />
+          </div>
+          <div class="modal-body">
+            <p class="mb-2">
+              <strong>Categorie:</strong> {{ individualNameEditModal.category }}
+            </p>
+            <input
+              v-model="individualNameEditModal.value"
+              class="form-control"
+              type="text"
+            >
+            <p class="small text-secondary mt-2 mb-0">
+              Zet de naam terug naar de originele waarde om de override te verwijderen.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              @click="closeIndividualNameEdit"
+            >
+              Annuleren
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              @click="saveIndividualNameEdit"
+            >
+              Opslaan
             </button>
           </div>
         </div>
