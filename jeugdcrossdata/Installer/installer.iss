@@ -2,7 +2,7 @@
 #ifndef MyAppVersion
   #define MyAppVersion "1.0.0"
 #endif
-#define MyAppPublisher "Jeugdcross"
+#define MyAppPublisher "CGP Software"
 #define MyAppExeName "jeugdcrossdata.exe"
 #define MySourceDir "..\\artifacts\\publish"
 
@@ -11,6 +11,7 @@ AppId={{A9FFB2B0-19F2-4A56-8B58-6C8C4D0B3910}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+UninstallDisplayName={#MyAppName}
 DefaultDirName={autopf}\\Jeugd crosscompetitie
 DefaultGroupName=Jeugd crosscompetitie
 OutputDir=..\\artifacts\\installer
