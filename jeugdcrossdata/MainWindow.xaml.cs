@@ -2,6 +2,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 using jeugdcrossdata.Models;
 using jeugdcrossdata.Services;
 using jeugdcrossdata.UI;
@@ -24,6 +25,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        SetWindowIcon();
         Loaded += MainWindow_Loaded;
     }
 
@@ -469,5 +471,16 @@ public partial class MainWindow : Window
     private void ShowAlert(string title, string message, AlertType type)
     {
         ModernAlertWindow.Show(this, title, message, type);
+    }
+
+    private void SetWindowIcon()
+    {
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "logo.png");
+        if (!File.Exists(iconPath))
+        {
+            return;
+        }
+
+        Icon = BitmapFrame.Create(new Uri(iconPath, UriKind.Absolute));
     }
 }
