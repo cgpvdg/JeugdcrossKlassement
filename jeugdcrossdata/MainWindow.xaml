@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         mc:Ignorable="d"
-        Title="Jeugdcross Data Upload"
+        Title="Jeugd crosscompetitie"
         Height="700"
         Width="960"
         MinHeight="640"
@@ -213,7 +213,7 @@
 
         <Border Background="#121D33" BorderBrush="#2D456D" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
             <DockPanel Margin="12,8">
-                <TextBlock Text="Jeugd crosscompetitie - Data uploader" Foreground="#E8EEF8" VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold" />
+                <TextBlock Text="Jeugd crosscompetitie" Foreground="#E8EEF8" VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
                     <Button x:Name="ConfigToggleButton"
                             Content="&#xE713;"
@@ -238,7 +238,7 @@
 
                 <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
-                        <TextBlock Text="Data uploader"
+                        <TextBlock Text="Jeugd crosscompetitie"
                                    Foreground="White"
                                    FontSize="30"
                                    FontWeight="Bold" />
@@ -373,3 +373,4 @@
         </ScrollViewer>
     </Grid>
 </Window>
+
