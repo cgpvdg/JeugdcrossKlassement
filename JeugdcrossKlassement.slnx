@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="jeugdcrossdata/jeugdcrossdata.csproj" />
   <Project Path="JeugdcrossKlassement/jeugdcrossklassement.esproj">
     <Build />
     <Deploy />

@@ -1,0 +1,239 @@
+﻿<Window x:Class="jeugdcrossdata.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        mc:Ignorable="d"
+        Title="Jeugdcross Data Upload"
+        Height="700"
+        Width="960"
+        MinHeight="640"
+        MinWidth="900"
+        Background="#0E1423"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        StateChanged="Window_StateChanged"
+        WindowStartupLocation="CenterScreen">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="0" CornerRadius="0" GlassFrameThickness="0" ResizeBorderThickness="6" />
+    </shell:WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="CardBackgroundBrush" Color="#17243D" />
+        <SolidColorBrush x:Key="CardEdgeBrush" Color="#324A73" />
+        <SolidColorBrush x:Key="SecondaryForegroundBrush" Color="#AAB5CC" />
+        <Style x:Key="CardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource CardBackgroundBrush}" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="BorderBrush" Value="{StaticResource CardEdgeBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="20" />
+        </Style>
+        <Style x:Key="ModernTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Foreground" Value="#F8FAFC" />
+            <Setter Property="Background" Value="#111C33" />
+            <Setter Property="BorderBrush" Value="#3E5682" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="Margin" Value="0,6,0,0" />
+        </Style>
+        <Style x:Key="ModernPasswordBoxStyle" TargetType="PasswordBox">
+            <Setter Property="Foreground" Value="#F8FAFC" />
+            <Setter Property="Background" Value="#111C33" />
+            <Setter Property="BorderBrush" Value="#3E5682" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="Margin" Value="0,6,0,0" />
+        </Style>
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="Margin" Value="0,10,10,0" />
+            <Setter Property="Background" Value="#1E8BE6" />
+            <Setter Property="BorderBrush" Value="#48A6FF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+            <Setter Property="Background" Value="#243A5E" />
+            <Setter Property="BorderBrush" Value="#365988" />
+        </Style>
+        <Style x:Key="TitleBarButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="Foreground" Value="#E8EEF8" />
+            <Setter Property="Background" Value="#1B2D4A" />
+            <Setter Property="BorderBrush" Value="#355785" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style x:Key="CloseTitleBarButtonStyle" TargetType="Button" BasedOn="{StaticResource TitleBarButtonStyle}">
+            <Setter Property="Background" Value="#612E47" />
+            <Setter Property="BorderBrush" Value="#91506F" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
+    </Window.Resources>
+
+    <Grid x:Name="RootContainer">
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#0B1220" Offset="0" />
+                <GradientStop Color="#13203A" Offset="1" />
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Background="#121D33" BorderBrush="#2D456D" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <DockPanel Margin="12,8">
+                <TextBlock Text="Jeugdcross Data Upload" Foreground="#E8EEF8" VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
+                    <Button x:Name="ConfigToggleButton"
+                            Content="&#xE713;"
+                            Style="{StaticResource TitleBarButtonStyle}"
+                            ToolTip="Toon/verberg configuratie"
+                            Click="ConfigToggleButton_Click" />
+                    <Button Content="&#xE921;" Style="{StaticResource TitleBarButtonStyle}" Click="MinimizeButton_Click" />
+                    <Button x:Name="MaximizeRestoreButton" Content="&#xE922;" Style="{StaticResource TitleBarButtonStyle}" Click="MaximizeRestoreButton_Click" />
+                    <Button Content="&#xE8BB;" Style="{StaticResource CloseTitleBarButtonStyle}" Click="CloseButton_Click" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <Grid Margin="28">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Jeugd crosscompetitie - Data upload"
+                                   Foreground="White"
+                                   FontSize="30"
+                                   FontWeight="Bold" />
+                        <TextBlock Text="Upload JSON-bestanden direct naar GitHub."
+                                   Foreground="{StaticResource SecondaryForegroundBrush}"
+                                   Margin="0,6,0,0"
+                                   FontSize="14" />
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="ConfigSection" Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,16,0,0" Visibility="Collapsed">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="GitHub instellingen" Foreground="White" FontSize="18" FontWeight="SemiBold" />
+                            <TextBlock Text="Owner" Foreground="{StaticResource SecondaryForegroundBrush}" Margin="0,10,0,0" />
+                            <TextBox x:Name="OwnerTextBox" Style="{StaticResource ModernTextBoxStyle}" />
+                            <TextBlock Text="Repository" Foreground="{StaticResource SecondaryForegroundBrush}" Margin="0,10,0,0" />
+                            <TextBox x:Name="RepositoryTextBox" Style="{StaticResource ModernTextBoxStyle}" />
+                            <TextBlock Text="Pad in repository (bijv. data/resultaten.json)" Foreground="{StaticResource SecondaryForegroundBrush}" Margin="0,10,0,0" />
+                            <TextBox x:Name="RepositoryPathTextBox" Style="{StaticResource ModernTextBoxStyle}" />
+                            <TextBlock Text="Branch" Foreground="{StaticResource SecondaryForegroundBrush}" Margin="0,10,0,0" />
+                            <TextBox x:Name="BranchTextBox" Style="{StaticResource ModernTextBoxStyle}" Text="main" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Persoonlijke Access Token (PAT)" Foreground="White" FontSize="18" FontWeight="SemiBold" />
+                            <TextBlock Text="PAT wordt versleuteld opgeslagen voor deze Windows-gebruiker."
+                                       Foreground="{StaticResource SecondaryForegroundBrush}"
+                                       Margin="0,10,0,0"
+                                       TextWrapping="Wrap" />
+                            <PasswordBox x:Name="PatPasswordBox" Style="{StaticResource ModernPasswordBoxStyle}" />
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="SavePatButton"
+                                        Content="PAT opslaan"
+                                        Style="{StaticResource PrimaryButtonStyle}"
+                                        Click="SavePatButton_Click" />
+                                <Button x:Name="TestPatButton"
+                                        Content="Test PAT"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Click="TestPatButton_Click" />
+                                <Button x:Name="ClearPatButton"
+                                        Content="PAT verwijderen"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Click="ClearPatButton_Click" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="2" Style="{StaticResource CardStyle}" Margin="0,16,0,0">
+                    <StackPanel>
+                        <TextBlock Text="JSON bestand"
+                                   Foreground="White"
+                                   FontSize="18"
+                                   FontWeight="SemiBold" />
+                        <Border x:Name="DropArea"
+                                Margin="0,14,0,0"
+                                Padding="20"
+                                BorderBrush="#5071A7"
+                                BorderThickness="2"
+                                CornerRadius="14"
+                                Background="#12203A"
+                                AllowDrop="True"
+                                DragOver="DropArea_DragOver"
+                                Drop="DropArea_Drop">
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="Sleep je JSON bestand hierheen"
+                                           Foreground="#D8E4FA"
+                                           HorizontalAlignment="Center"
+                                           FontSize="16"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Text="of gebruik Bestand kiezen"
+                                           Foreground="{StaticResource SecondaryForegroundBrush}"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,6,0,0" />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock x:Name="SelectedFileTextBlock"
+                                   Text="Nog geen bestand geselecteerd."
+                                   Foreground="{StaticResource SecondaryForegroundBrush}"
+                                   Margin="0,12,0,0" />
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="BrowseButton"
+                                    Content="Bestand kiezen"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Click="BrowseButton_Click" />
+                            <Button x:Name="UploadButton"
+                                    Content="Upload naar GitHub"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    Click="UploadButton_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="3" Style="{StaticResource CardStyle}" Margin="0,16,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Status" Foreground="White" FontSize="18" FontWeight="SemiBold" />
+                        <TextBlock x:Name="StatusTextBlock"
+                                   Text="Klaar."
+                                   Foreground="{StaticResource SecondaryForegroundBrush}"
+                                   Margin="0,10,0,0"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</Window>
