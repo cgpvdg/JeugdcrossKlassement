@@ -1,0 +1,10 @@
+﻿{
+  "GitHubOwner": "cgpvdg",
+  "RepositoryName": "JeugdcrossKlassement",
+  "Branch": "master",
+  "RepositoryBasePath": "JeugdcrossCompetitie/public/data/",
+  "AllowedRepositoryFiles": [
+    "competitie-data.json",
+    "site-content.json"
+  ]
+}

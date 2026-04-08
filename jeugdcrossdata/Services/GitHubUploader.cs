@@ -26,6 +26,30 @@ public sealed class GitHubUploader
         await ValidateTokenAsync(client, cancellationToken);
     }
 
+    public async Task<string> DownloadFileContentAsync(
+        string pat,
+        string owner,
+        string repository,
+        string repositoryPath,
+        string branch,
+        CancellationToken cancellationToken = default)
+    {
+        using var client = new HttpClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", pat);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("jeugdcrossdata-app");
+        client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
+
+        await ValidateTokenAsync(client, cancellationToken);
+        var existingFile = await GetExistingFileAsync(client, owner, repository, repositoryPath, branch, cancellationToken);
+        if (existingFile is null)
+        {
+            throw new FileNotFoundException($"Bestand niet gevonden in repo: {repositoryPath}");
+        }
+
+        return existingFile.RawContent;
+    }
+
     public async Task<UploadResult> UploadJsonAsync(
         string pat,
         string owner,

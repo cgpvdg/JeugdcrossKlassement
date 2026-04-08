@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using jeugdcrossdata.Models;
 using jeugdcrossdata.Services;
@@ -11,10 +12,12 @@ namespace jeugdcrossdata;
 public partial class MainWindow : Window
 {
     private readonly AppConfigStore _configStore = new();
+    private readonly UploadSettingsStore _uploadSettingsStore = new();
     private readonly SecureTokenStore _tokenStore = new();
     private readonly GitHubUploader _gitHubUploader = new();
 
     private AppConfig _config = new();
+    private UploadSettings _uploadSettings = new();
     private string? _selectedFilePath;
     private bool _isConfigVisible;
 
@@ -29,10 +32,25 @@ public partial class MainWindow : Window
         try
         {
             _config = await _configStore.LoadAsync();
-            OwnerTextBox.Text = _config.GitHubOwner ?? string.Empty;
-            RepositoryTextBox.Text = _config.RepositoryName ?? string.Empty;
-            RepositoryPathTextBox.Text = _config.RepositoryPath ?? string.Empty;
-            BranchTextBox.Text = string.IsNullOrWhiteSpace(_config.Branch) ? "main" : _config.Branch;
+            _uploadSettings = await _uploadSettingsStore.LoadAsync();
+
+            var allowedFiles = (_uploadSettings.AllowedRepositoryFiles is { Length: > 0 }
+                ? _uploadSettings.AllowedRepositoryFiles
+                : ["competitie-data.json", "site-content.json"])
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            RepositoryFileComboBox.ItemsSource = allowedFiles;
+            RepositoryFileComboBox.SelectedItem = allowedFiles.Contains(_config.SelectedRepositoryFile, StringComparer.OrdinalIgnoreCase)
+                ? _config.SelectedRepositoryFile
+                : allowedFiles[0];
+
+            ConfigPathTextBlock.Text = $"Configuratiebestand: {_uploadSettingsStore.GetSettingsPath()}";
+            StaticSettingsTextBlock.Text =
+                $"Owner: {_uploadSettings.GitHubOwner}\n" +
+                $"Repository: {_uploadSettings.RepositoryName}\n" +
+                $"Branch: {_uploadSettings.Branch}\n" +
+                $"Basispad: {_uploadSettings.RepositoryBasePath}";
 
             SetStatus(string.IsNullOrWhiteSpace(_config.EncryptedPat)
                 ? "Nog geen PAT opgeslagen."
@@ -41,6 +59,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             SetStatus($"Configuratie laden mislukt: {ex.Message}");
+            ShowAlert("Fout", $"Configuratie laden mislukt: {ex.Message}", AlertType.Error);
         }
     }
 
@@ -158,6 +177,89 @@ public partial class MainWindow : Window
         SelectFile(files[0]);
     }
 
+    private async void DownloadRepositoryFileButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (RepositoryFileComboBox.SelectedItem is null)
+        {
+            ShowAlert("Onvolledige invoer", "Kies eerst een doelbestand in de repository.", AlertType.Warning);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_config.EncryptedPat))
+        {
+            ShowAlert("PAT vereist", "Geen PAT opgeslagen. Voer en bewaar eerst een PAT.", AlertType.Warning);
+            return;
+        }
+
+        string pat;
+        try
+        {
+            pat = _tokenStore.Decrypt(_config.EncryptedPat);
+        }
+        catch
+        {
+            ShowAlert("PAT fout", "Opgeslagen PAT kon niet worden gelezen. Voer een nieuwe PAT in.", AlertType.Warning);
+            _config.EncryptedPat = null;
+            await PersistSettingsAsync();
+            return;
+        }
+
+        ToggleBusy(true);
+        try
+        {
+            var fileName = GetSelectedRepositoryFileName();
+            var repositoryPath = BuildRepositoryPath(fileName);
+            SetStatus("Bestand downloaden uit GitHub...");
+
+            var content = await _gitHubUploader.DownloadFileContentAsync(
+                pat,
+                _uploadSettings.GitHubOwner,
+                _uploadSettings.RepositoryName,
+                repositoryPath,
+                _uploadSettings.Branch);
+
+            var saveDialog = new SaveFileDialog
+            {
+                FileName = fileName,
+                Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+                AddExtension = true,
+                DefaultExt = ".json",
+                Title = "Download bestand opslaan als"
+            };
+
+            if (saveDialog.ShowDialog() != true)
+            {
+                SetStatus("Download geannuleerd.");
+                return;
+            }
+
+            await File.WriteAllTextAsync(saveDialog.FileName, content);
+            SetStatus($"Bestand gedownload: {saveDialog.FileName}");
+            ShowAlert("Succes", "Bestand succesvol gedownload uit de repository.", AlertType.Success);
+        }
+        catch (GitHubTokenInvalidException)
+        {
+            _config.EncryptedPat = null;
+            await PersistSettingsAsync();
+            SetStatus("PAT ongeldig of verlopen. Nieuwe PAT invoeren en opslaan.");
+            ShowAlert("PAT verlopen", "Opgeslagen PAT is ongeldig of verlopen. Voer een nieuwe PAT in en sla op.", AlertType.Warning);
+        }
+        catch (FileNotFoundException ex)
+        {
+            SetStatus(ex.Message);
+            ShowAlert("Niet gevonden", ex.Message, AlertType.Warning);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Download mislukt: {ex.Message}");
+            ShowAlert("Fout", $"Download mislukt: {ex.Message}", AlertType.Error);
+        }
+        finally
+        {
+            ToggleBusy(false);
+        }
+    }
+
     private async void UploadButton_Click(object sender, RoutedEventArgs e)
     {
         if (!ValidateRequiredInput(out var validationError))
@@ -191,12 +293,13 @@ public partial class MainWindow : Window
             SetStatus("Uploaden naar GitHub...");
             await PersistSettingsAsync();
 
+            var repositoryPath = BuildRepositoryPath(GetSelectedRepositoryFileName());
             var uploadResult = await _gitHubUploader.UploadJsonAsync(
                 pat,
-                OwnerTextBox.Text.Trim(),
-                RepositoryTextBox.Text.Trim(),
-                RepositoryPathTextBox.Text.Trim().Replace('\\', '/'),
-                BranchTextBox.Text.Trim(),
+                _uploadSettings.GitHubOwner,
+                _uploadSettings.RepositoryName,
+                repositoryPath,
+                _uploadSettings.Branch,
                 _selectedFilePath!);
 
             if (!uploadResult.TargetUpdated)
@@ -237,11 +340,7 @@ public partial class MainWindow : Window
 
     private async Task PersistSettingsAsync()
     {
-        _config.GitHubOwner = OwnerTextBox.Text.Trim();
-        _config.RepositoryName = RepositoryTextBox.Text.Trim();
-        _config.RepositoryPath = RepositoryPathTextBox.Text.Trim().Replace('\\', '/');
-        _config.Branch = string.IsNullOrWhiteSpace(BranchTextBox.Text) ? "main" : BranchTextBox.Text.Trim();
-
+        _config.SelectedRepositoryFile = GetSelectedRepositoryFileName();
         await _configStore.SaveAsync(_config);
     }
 
@@ -254,13 +353,9 @@ public partial class MainWindow : Window
 
     private bool ValidateRequiredInput(out string message)
     {
-        if (string.IsNullOrWhiteSpace(OwnerTextBox.Text)
-            || string.IsNullOrWhiteSpace(RepositoryTextBox.Text)
-            || string.IsNullOrWhiteSpace(RepositoryPathTextBox.Text)
-            || string.IsNullOrWhiteSpace(BranchTextBox.Text)
-            || string.IsNullOrWhiteSpace(_selectedFilePath))
+        if (RepositoryFileComboBox.SelectedItem is null || string.IsNullOrWhiteSpace(_selectedFilePath))
         {
-            message = "Vul owner/repository/pad/branch in en kies een JSON bestand.";
+            message = "Kies een doelbestand in de repository en selecteer een JSON bestand.";
             return false;
         }
 
@@ -289,6 +384,18 @@ public partial class MainWindow : Window
 
         var files = (string[]?)e.Data.GetData(DataFormats.FileDrop);
         return files is { Length: 1 } && string.Equals(Path.GetExtension(files[0]), ".json", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetSelectedRepositoryFileName()
+    {
+        return (RepositoryFileComboBox.SelectedItem as string ?? "competitie-data.json").Trim();
+    }
+
+    private string BuildRepositoryPath(string repositoryFileName)
+    {
+        var basePath = (_uploadSettings.RepositoryBasePath ?? string.Empty).Trim().Replace('\\', '/').Trim('/');
+        var fileName = repositoryFileName.Trim().TrimStart('/');
+        return $"{basePath}/{fileName}";
     }
 
     private void SetStatus(string message)
@@ -351,7 +458,9 @@ public partial class MainWindow : Window
     {
         Mouse.OverrideCursor = isBusy ? Cursors.Wait : null;
         UploadButton.IsEnabled = !isBusy;
+        DownloadRepositoryFileButton.IsEnabled = !isBusy;
         BrowseButton.IsEnabled = !isBusy;
+        RepositoryFileComboBox.IsEnabled = !isBusy;
         SavePatButton.IsEnabled = !isBusy;
         TestPatButton.IsEnabled = !isBusy;
         ClearPatButton.IsEnabled = !isBusy;

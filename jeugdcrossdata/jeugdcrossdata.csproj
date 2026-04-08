@@ -11,6 +11,9 @@
 
   <ItemGroup>
     <Resource Include="Assets\app.ico" />
+    <None Update="upload-settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
