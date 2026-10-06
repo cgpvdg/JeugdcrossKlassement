@@ -3,18 +3,18 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vue = require('../JeugdcrossKlassement/node_modules/vue')
 
-function loadRankings() {
+function loadRankings(options = {}) {
   const source = fs.readFileSync('JeugdcrossKlassement/src/App.vue', 'utf8').split('<script setup>')[1].split('</script>')[0]
     .replace(/^import[\s\S]*?from ['"][^'"]+['"]\s*$/gm, '')
     .replace(/onMounted\(init\)/g, '')
-  const api = new Function('computed', 'markRaw', 'onMounted', 'ref', 'shallowRef', 'CATEGORY_ORDER', 'normalizeParticipantKey', source + `
+  const api = new Function('computed', 'markRaw', 'onMounted', 'ref', 'shallowRef', 'CATEGORY_ORDER', 'normalizeParticipantKey', 'decodeTextFileFromArrayBuffer', 'parseCrossMetadata', 'parseCrossResults', source + `
     let exported
     downloadTextFile = (name, content) => { exported = JSON.parse(content) }
     showSuccess = () => {}
     showError = (message) => { throw new Error(message) }
-    return { allCrosses, allResults, selectedPoule, exportPoules, db, pendingNameConflicts, chooseAllNameConflicts, isApplyingNameChoices, pendingCrossAssociationChecks, chooseAllAcrossAssociations, isApplyingCrossAssociationChoices, mockRefresh: () => { refreshData = async () => {} }, standingsPerCategory, teamStandingsPerCategory, canHighlightFinalists,
+    return { allCrosses, allResults, selectedPoule, exportPoules, db, onCompetitionFileSelected, mockClearCrossResults: () => { clearCrossResults = async () => {} }, pendingNameConflicts, chooseAllNameConflicts, isApplyingNameChoices, pendingCrossAssociationChecks, chooseAllAcrossAssociations, isApplyingCrossAssociationChoices, mockRefresh: () => { refreshData = async () => {} }, standingsPerCategory, teamStandingsPerCategory, canHighlightFinalists,
       exportData: () => { exportCompetitionOverview(); return exported } }
-  `)(vue.computed, vue.markRaw, () => {}, vue.ref, vue.shallowRef, ['Jongens U16'], (value) => value.toLowerCase())
+  `)(vue.computed, vue.markRaw, () => {}, vue.ref, vue.shallowRef, ['Jongens U16'], (value) => value.toLowerCase(), options.decode, options.metadata, options.entries)
   return api
 }
 
@@ -165,3 +165,21 @@ for (const side of ['left', 'right']) {
     assert.equal(api.isApplyingNameChoices.value, false)
   })
 }
+
+
+test('upload uses the initially selected pool even if the tab changes while reading', async () => {
+  const api = loadRankings({ decode: () => '', metadata: () => ({ name: 'Cross', date: '2027-01-09', association: 'Club' }), entries: () => [{ category: 'Jongens U16', participantKey: 'jan', rank: 1, points: 1, name: 'Jan', association: 'Club', time: '1:00' }] })
+  api.mockRefresh()
+  api.mockClearCrossResults()
+  api.selectedPoule.value = 'Midden'
+  api.allCrosses.value = [1, 2, 3].map((n) => ({ id: 'Noord' + n, poule: 'Noord', date: '2027-01-09' }))
+  let savedCross
+  let savedResults
+  api.db.value = { crosses: { insert: async (cross) => { savedCross = cross; return { toJSON: () => cross } } }, results: { bulkInsert: async (rows) => { savedResults = rows } } }
+  const event = { target: { value: 'file.txt', files: [{ arrayBuffer: async () => { api.selectedPoule.value = 'Noord'; return new ArrayBuffer(0) } }] } }
+  await api.onCompetitionFileSelected(event)
+  assert.equal(savedCross.poule, 'Midden')
+  assert.equal(savedResults[0].crossId, savedCross.id)
+  assert.equal(api.selectedPoule.value, 'Noord')
+  assert.equal(event.target.value, '')
+})

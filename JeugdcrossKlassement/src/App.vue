@@ -23,7 +23,6 @@ const selectedPoule = ref('Noord')
 const exportPoules = ref([...POULES])
 const isApplyingCrossAssociationChoices = ref(false)
 const isApplyingNameChoices = ref(false)
-const uploadPoule = ref('')
 const allCrosses = ref([])
 const crosses = computed(() => allCrosses.value.filter((cross) => cross.poule === selectedPoule.value))
 const allResults = ref([])
@@ -664,9 +663,8 @@ async function onCompetitionFileSelected(event) {
     return
   }
 
+  const uploadPoule = selectedPoule.value
   try {
-    if (!POULES.includes(uploadPoule.value)) throw new Error('Kies eerst een poule.')
-    selectedPoule.value = uploadPoule.value
     const arrayBuffer = await file.arrayBuffer()
     const text = decodeTextFileFromArrayBuffer(arrayBuffer)
     const metadata = parseCrossMetadata(text)
@@ -676,10 +674,11 @@ async function onCompetitionFileSelected(event) {
       throw new Error('Geen herkenbare uitslagregels gevonden in dit bestand.')
     }
 
-    const existingCross = crosses.value.find((cross) => cross.date === metadata.date)
+    const pouleCrosses = allCrosses.value.filter((cross) => cross.poule === uploadPoule)
+    const existingCross = pouleCrosses.find((cross) => cross.date === metadata.date)
     let crossToUse = existingCross
 
-    if (!crossToUse && crosses.value.length >= 3) {
+    if (!crossToUse && pouleCrosses.length >= 3) {
       throw new Error('Maximum van 3 verschillende crossen in deze poule bereikt.')
     }
 
@@ -696,7 +695,7 @@ async function onCompetitionFileSelected(event) {
     if (!crossToUse) {
       const insertResult = await db.value.crosses.insert({
         id: `cross-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        poule: uploadPoule.value,
+        poule: uploadPoule,
         name: metadata.name,
         association: metadata.association,
         date: metadata.date,
@@ -1720,11 +1719,7 @@ onMounted(() => {
             <p class="text-secondary small mb-3">
               Maximaal 3 verschillende crossen. Bestaat een wedstrijd al, dan wordt de oude uitslag vervangen.
             </p>
-            <label for="upload-poule" class="form-label">Poule van de wedstrijd (maximaal 3 wedstrijden)</label>
-            <select id="upload-poule" v-model="uploadPoule" class="form-select mb-3">
-              <option disabled value="">Kies een poule</option>
-              <option v-for="poule in POULES" :key="poule" :value="poule">{{ poule }}</option>
-            </select>
+            <p class="small text-secondary">Upload voor poule <strong>{{ selectedPoule }}</strong> (maximaal 3 wedstrijden).</p>
             <label class="btn btn-primary mb-0">
               Upload uitslag
               <input
