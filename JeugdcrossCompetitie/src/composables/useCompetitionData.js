@@ -14,9 +14,37 @@ const siteContent = ref({
 })
 const loaded = ref(false)
 
-const raceColumns = computed(() => competitionData.value?.wedstrijden || [])
-const individueleCategorieen = computed(() => competitionData.value?.individueelKlassement || [])
-const ploegenCategorieen = computed(() => competitionData.value?.ploegenKlassement || [])
+const poules = computed(() => ['Noord', 'Midden', 'Zuid'].map((naam) => {
+  const source = competitionData.value?.poules?.find((poule) => poule.naam === naam)
+    || (naam === 'Noord' && !competitionData.value?.poules ? competitionData.value : null)
+  return { naam, wedstrijden: source?.wedstrijden || [], individueelKlassement: source?.individueelKlassement || [], ploegenKlassement: source?.ploegenKlassement || [] }
+}))
+const raceColumns = computed(() => poules.value.flatMap((poule) => poule.wedstrijden))
+const individueleCategorieen = computed(() => poules.value.flatMap((poule) => poule.individueelKlassement.map((category) => ({ ...category, poule: poule.naam }))))
+const ploegenCategorieen = computed(() => poules.value.flatMap((poule) => poule.ploegenKlassement.map((category) => ({ ...category, poule: poule.naam }))))
+const wedstrijdOverzicht = computed(() => {
+  const overview = siteContent.value.wedstrijdOverzicht
+  if (overview && !Array.isArray(overview)) {
+    return (overview.poules || []).flatMap((poule) => (poule.wedstrijden || []).map((race) => ({ ...race, poule: poule.naam })))
+  }
+  const configured = overview || []
+  const races = poules.value.flatMap((poule) => poule.wedstrijden.map((race) => {
+    const info = configured.find((item) => (item.poule || 'Noord') === poule.naam && (item.crossId === race.id || item.datum === race.datum)) || {}
+    return { ...info, ...race, titel: race.naam, poule: poule.naam }
+  }))
+  return [...races, ...configured.filter((item) => !races.some((race) => race.poule === (item.poule || 'Noord') && race.datum === item.datum)).map((item) => ({ ...item, poule: item.poule || 'Noord' }))]
+})
+
+// The final is shared and never belongs to a pool or its ranking columns.
+const finaleWedstrijd = computed(() => siteContent.value.wedstrijdOverzicht?.finale || null)
+const wedstrijdGroepen = computed(() => [
+  ...poules.value.map((poule) => ({
+    key: poule.naam,
+    titel: 'Poule ' + poule.naam,
+    wedstrijden: wedstrijdOverzicht.value.filter((race) => race.poule === poule.naam),
+  })),
+  ...(finaleWedstrijd.value ? [{ key: 'finale', titel: 'Finale — alle poules', wedstrijden: [finaleWedstrijd.value] }] : []),
+])
 
 const topIndividueel = computed(() => {
   const rows = []
@@ -108,11 +136,22 @@ async function loadData(force = false) {
 }
 
 export function useCompetitionData() {
+  const selectedPoule = ref('Noord')
+  const activePoule = computed(() => poules.value.find((poule) => poule.naam === selectedPoule.value) || poules.value[0])
   return {
     loading,
     error,
     competitionData,
     siteContent,
+    poules,
+    wedstrijdOverzicht,
+    finaleWedstrijd,
+    wedstrijdGroepen,
+    selectedPoule,
+    activePoule,
+    selectedRaceColumns: computed(() => activePoule.value.wedstrijden),
+    selectedIndividueleCategorieen: computed(() => activePoule.value.individueelKlassement),
+    selectedPloegenCategorieen: computed(() => activePoule.value.ploegenKlassement),
     raceColumns,
     individueleCategorieen,
     ploegenCategorieen,

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted } from 'vue'
+import RaceCard from '../components/RaceCard.vue'
 import { useCompetitionData } from '../composables/useCompetitionData'
 
 const {
@@ -7,8 +8,8 @@ const {
   error,
   competitionData,
   siteContent,
+  wedstrijdGroepen,
   loadData,
-  formatDate,
 } = useCompetitionData()
 
 const inschrijfformulierLink = computed(() => {
@@ -20,7 +21,7 @@ const inschrijfformulierLink = computed(() => {
   return new URL(configured.replace(/^\//, ''), `http://local${base}`).pathname
 })
 
-const wedstrijdOverzicht = computed(() => siteContent.value.wedstrijdOverzicht || [])
+
 
 onMounted(() => {
   loadData()
@@ -49,38 +50,19 @@ onMounted(() => {
         </article>
       </div>
 
-      <div class="wedstrijd-grid">
-        <article v-for="wedstrijd in wedstrijdOverzicht" :key="`${wedstrijd.titel}-${wedstrijd.datum}`" class="wedstrijd-card">
-          <h3>{{ wedstrijd.titel }}</h3>
-          <dl>
-            <div>
-              <dt>Datum</dt>
-              <dd>{{ formatDate(wedstrijd.datum) }}</dd>
-            </div>
-            <div>
-              <dt>Vereniging</dt>
-              <dd>{{ wedstrijd.vereniging || '-' }}</dd>
-            </div>
-            <div>
-              <dt>Plaats</dt>
-              <dd>{{ wedstrijd.plaats || '-' }}</dd>
-            </div>
-          </dl>
-          <div class="wedstrijd-links">
-            <a :href="wedstrijd.verenigingUrl" target="_blank" rel="noopener noreferrer">
-              <i class="fa-solid fa-globe" /> Verenigingswebsite
-            </a>
-            <a :href="wedstrijd.tijdschemaUrl" target="_blank" rel="noopener noreferrer">
-              <i class="fa-regular fa-clock" /> Tijdschema
-            </a>
-            <a v-if="wedstrijd.uitslagUrl" :href="wedstrijd.uitslagUrl" target="_blank" rel="noopener noreferrer">
-              <i class="fa-solid fa-list-ol" /> Uitslag
-            </a>
-            <a v-if="wedstrijd.ploegenUitslagUrl" :href="wedstrijd.ploegenUitslagUrl" target="_blank" rel="noopener noreferrer">
-              <i class="fa-solid fa-people-group" /> Ploegen uitslag
-            </a>
-          </div>
-        </article>
+      <div class="race-poules-grid">
+      <section
+        v-for="groep in wedstrijdGroepen"
+        :key="groep.key"
+        class="race-group"
+        :class="{ 'race-group-final': groep.key === 'finale' }"
+      >
+        <h3>{{ groep.titel }}</h3>
+        <p v-if="!groep.wedstrijden.length">Nog geen wedstrijden.</p>
+        <div class="race-stack">
+          <RaceCard v-for="(wedstrijd, index) in groep.wedstrijden" :key="index" :wedstrijd="wedstrijd" />
+        </div>
+      </section>
       </div>
     </section>
   </main>
@@ -94,3 +76,36 @@ onMounted(() => {
     </p>
   </main>
 </template>
+
+<style scoped>
+.race-poules-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem .75rem;
+  align-items: start;
+}
+
+.race-group {
+  min-width: 0;
+  margin-top: 0;
+}
+
+.race-group h3 {
+  margin-bottom: .5rem;
+}
+
+.race-stack {
+  display: grid;
+  gap: .5rem;
+}
+
+.race-group-final {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 800px) {
+  .race-poules-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

@@ -18,12 +18,23 @@ const teamBreakdownModal = ref(null)
 const individualNameEditModal = ref(null)
 let notificationTimeoutId = null
 
-const crosses = ref([])
-const results = ref([])
-const participantDecisions = ref([])
-const crossAssociationDecisions = ref([])
+const POULES = ['Noord', 'Midden', 'Zuid']
+const selectedPoule = ref('Noord')
+const uploadPoule = ref('')
+const allCrosses = ref([])
+const crosses = computed(() => allCrosses.value.filter((cross) => cross.poule === selectedPoule.value))
+const allResults = ref([])
+const results = computed(() => {
+  const ids = new Set(crosses.value.map((cross) => cross.id))
+  return allResults.value.filter((result) => ids.has(result.crossId))
+})
+const allParticipantDecisions = ref([])
+const participantDecisions = computed(() => allParticipantDecisions.value.filter((item) => selectedPoule.value === 'Noord' ? !/^(Midden|Zuid)::/.test(item.id) : item.id.startsWith(selectedPoule.value + '::')))
+const allCrossAssociationDecisions = ref([])
+const crossAssociationDecisions = computed(() => allCrossAssociationDecisions.value.filter((item) => selectedPoule.value === 'Noord' ? !/^(Midden|Zuid)::/.test(item.id) : item.id.startsWith(selectedPoule.value + '::')))
 const crossConfigs = ref([])
-const individualNameOverrides = ref([])
+const allIndividualNameOverrides = ref([])
+const individualNameOverrides = computed(() => allIndividualNameOverrides.value.filter((item) => selectedPoule.value === 'Noord' ? !/^(Midden|Zuid)::/.test(item.id) : item.id.startsWith(selectedPoule.value + '::')))
 
 function resetMessages() {
   if (notificationTimeoutId) {
@@ -77,20 +88,24 @@ function createGroupKey(category, association) {
   return `${category}::${canonicalAssociationKey(association)}`
 }
 
+function scopedId(id) {
+  return selectedPoule.value === 'Noord' ? id : selectedPoule.value + '::' + id
+}
+
 function sortedPair(left, right) {
   return left < right ? [left, right] : [right, left]
 }
 
 function createDecisionId(category, associationKey, leftKey, rightKey) {
   const [a, b] = sortedPair(leftKey, rightKey)
-  return `${sanitizeForId(category)}::${associationKey}::${a}::${b}`
+  return scopedId(`${sanitizeForId(category)}::${associationKey}::${a}::${b}`)
 }
 
 function createCrossAssociationDecisionId(category, leftParticipantKey, leftAssociationKey, rightParticipantKey, rightAssociationKey) {
   const left = `${leftParticipantKey}::${leftAssociationKey}`
   const right = `${rightParticipantKey}::${rightAssociationKey}`
   const [a, b] = sortedPair(left, right)
-  return `${sanitizeForId(category)}::cross-association::${a}::${b}`
+  return scopedId(`${sanitizeForId(category)}::cross-association::${a}::${b}`)
 }
 
 function compactKey(value) {
@@ -267,7 +282,7 @@ function participantDisplayName(participant, isCombinedCategory) {
 }
 
 function individualNameOverrideKey(category, rowKey) {
-  return `${category}::${rowKey}`
+  return scopedId(`${category}::${rowKey}`)
 }
 
 function openIndividualNameEdit(category, row) {
@@ -335,12 +350,12 @@ async function refreshData() {
   const crossConfigDocs = await db.value.crossConfigs.find().exec()
   const individualNameOverrideDocs = await db.value.individualNameOverrides.find().exec()
 
-  crosses.value = crossDocs.map((doc) => doc.toJSON())
-  results.value = resultDocs.map((doc) => doc.toJSON())
-  participantDecisions.value = decisionDocs.map((doc) => doc.toJSON())
-  crossAssociationDecisions.value = crossAssociationDecisionDocs.map((doc) => doc.toJSON())
+  allCrosses.value = crossDocs.map((doc) => doc.toJSON())
+  allResults.value = resultDocs.map((doc) => doc.toJSON())
+  allParticipantDecisions.value = decisionDocs.map((doc) => doc.toJSON())
+  allCrossAssociationDecisions.value = crossAssociationDecisionDocs.map((doc) => doc.toJSON())
   crossConfigs.value = crossConfigDocs.map((doc) => doc.toJSON())
-  individualNameOverrides.value = individualNameOverrideDocs.map((doc) => doc.toJSON())
+  allIndividualNameOverrides.value = individualNameOverrideDocs.map((doc) => doc.toJSON())
 }
 
 async function init() {
@@ -368,12 +383,12 @@ async function resetAllData() {
   try {
     await resetDatabase()
     db.value = markRaw(await getDatabase())
-    crosses.value = []
-    results.value = []
-    participantDecisions.value = []
-    crossAssociationDecisions.value = []
+    allCrosses.value = []
+    allResults.value = []
+    allParticipantDecisions.value = []
+    allCrossAssociationDecisions.value = []
     crossConfigs.value = []
-    individualNameOverrides.value = []
+    allIndividualNameOverrides.value = []
     await refreshData()
     showSuccess('Alles is verwijderd. Je kunt nu schoon starten.')
   }
@@ -389,12 +404,12 @@ async function exportAllData() {
       exportedAt: new Date().toISOString(),
       version: 1,
       data: {
-        crosses: crosses.value,
-        results: results.value,
-        participantDecisions: participantDecisions.value,
-        crossAssociationDecisions: crossAssociationDecisions.value,
+        crosses: allCrosses.value,
+        results: allResults.value,
+        participantDecisions: allParticipantDecisions.value,
+        crossAssociationDecisions: allCrossAssociationDecisions.value,
         crossConfigs: crossConfigs.value,
-        individualNameOverrides: individualNameOverrides.value,
+        individualNameOverrides: allIndividualNameOverrides.value,
       },
     }
 
@@ -409,7 +424,10 @@ async function exportAllData() {
 
 function exportCompetitionOverview() {
   resetMessages()
+  const previousPoule = selectedPoule.value
   try {
+    const poules = POULES.map((poule) => {
+    selectedPoule.value = poule
     const wedstrijdData = crosses.value.map((cross) => ({
       id: cross.id,
       naam: cross.name,
@@ -468,13 +486,9 @@ function exportCompetitionOverview() {
       }
     })
 
-    const payload = {
-      generatedAt: new Date().toISOString(),
-      version: 1,
-      wedstrijden: wedstrijdData,
-      individueelKlassement,
-      ploegenKlassement,
-    }
+    return { naam: poule, wedstrijden: wedstrijdData, individueelKlassement, ploegenKlassement }
+    })
+    const payload = { generatedAt: new Date().toISOString(), version: 2, poules }
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
     downloadTextFile(`jeugdcross-competitie-export-${timestamp}.json`, JSON.stringify(payload, null, 2))
@@ -482,6 +496,9 @@ function exportCompetitionOverview() {
   }
   catch (error) {
     showError(`Wedstrijdexport mislukt: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  finally {
+    selectedPoule.value = previousPoule
   }
 }
 
@@ -504,7 +521,11 @@ async function importAllData(event) {
     const parsed = JSON.parse(text)
     const importedData = parsed?.data || {}
 
-    const importedCrosses = Array.isArray(importedData.crosses) ? importedData.crosses : []
+    const importedCrosses = (Array.isArray(importedData.crosses) ? importedData.crosses : []).map((cross) => ({ ...cross, poule: cross.poule || 'Noord' }))
+    for (const poule of POULES) {
+      if (importedCrosses.filter((cross) => cross.poule === poule).length > 3) throw new Error('Maximaal 3 wedstrijden per poule (' + poule + ').')
+    }
+    if (importedCrosses.some((cross) => !POULES.includes(cross.poule))) throw new Error('Onbekende poule in import.')
     const importedResults = Array.isArray(importedData.results) ? importedData.results : []
     const importedParticipantDecisions = Array.isArray(importedData.participantDecisions) ? importedData.participantDecisions : []
     const importedCrossAssociationDecisions = Array.isArray(importedData.crossAssociationDecisions)
@@ -639,6 +660,8 @@ async function onCompetitionFileSelected(event) {
   }
 
   try {
+    if (!POULES.includes(uploadPoule.value)) throw new Error('Kies eerst een poule.')
+    selectedPoule.value = uploadPoule.value
     const arrayBuffer = await file.arrayBuffer()
     const text = decodeTextFileFromArrayBuffer(arrayBuffer)
     const metadata = parseCrossMetadata(text)
@@ -652,7 +675,7 @@ async function onCompetitionFileSelected(event) {
     let crossToUse = existingCross
 
     if (!crossToUse && crosses.value.length >= 3) {
-      throw new Error('Maximum van 3 verschillende crossen bereikt.')
+      throw new Error('Maximum van 3 verschillende crossen in deze poule bereikt.')
     }
 
     if (crossToUse) {
@@ -668,6 +691,7 @@ async function onCompetitionFileSelected(event) {
     if (!crossToUse) {
       const insertResult = await db.value.crosses.insert({
         id: `cross-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        poule: uploadPoule.value,
         name: metadata.name,
         association: metadata.association,
         date: metadata.date,
@@ -1544,6 +1568,9 @@ onMounted(() => {
     </div>
 
     <template v-else>
+      <div class="nav nav-pills gap-2 mb-4" aria-label="Poules">
+        <button v-for="poule in POULES" :key="poule" type="button" class="nav-link" :class="{ active: selectedPoule === poule }" :aria-pressed="selectedPoule === poule" @click="selectedPoule = poule; closeTeamBreakdown(); closeIndividualNameEdit()">{{ poule }}</button>
+      </div>
       <div
         v-if="errorMessage"
         class="alert alert-danger"
@@ -1631,6 +1658,11 @@ onMounted(() => {
             <p class="text-secondary small mb-3">
               Maximaal 3 verschillende crossen. Bestaat een wedstrijd al, dan wordt de oude uitslag vervangen.
             </p>
+            <label for="upload-poule" class="form-label">Poule van de wedstrijd (maximaal 3 wedstrijden)</label>
+            <select id="upload-poule" v-model="uploadPoule" class="form-select mb-3">
+              <option disabled value="">Kies een poule</option>
+              <option v-for="poule in POULES" :key="poule" :value="poule">{{ poule }}</option>
+            </select>
             <label class="btn btn-primary mb-0">
               Upload uitslag
               <input

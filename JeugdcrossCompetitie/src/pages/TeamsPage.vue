@@ -6,8 +6,10 @@ const {
   loading,
   error,
   competitionData,
-  raceColumns,
-  ploegenCategorieen,
+  poules,
+  selectedPoule,
+  selectedRaceColumns: raceColumns,
+  selectedPloegenCategorieen: ploegenCategorieen,
   loadData,
   formatDate,
   pointsValue,
@@ -61,6 +63,9 @@ onMounted(() => {
   <main v-if="!loading && competitionData" class="page-content">
     <section id="ploegen" class="panel">
       <h2><i class="fa-solid fa-users" /> Ploegenklassement</h2>
+      <div class="poule-tabs" aria-label="Poules">
+        <button v-for="poule in poules" :key="poule.naam" type="button" :class="{ active: selectedPoule === poule.naam }" :aria-pressed="selectedPoule === poule.naam" @click="selectedPoule = poule.naam; closeBreakdown()">{{ poule.naam }}</button>
+      </div>
       <div class="info-banner">
         Groen gemarkeerde ploegen hebben zich geplaatst voor de finale en mogen eventueel aangevuld worden tot 4 lopers, indien die aan minstens 2 wedstrijden meegedaan hebben zie competitiereglement art 16.b.
       </div>

@@ -6,8 +6,10 @@ const {
   loading,
   error,
   competitionData,
-  raceColumns,
-  individueleCategorieen,
+  poules,
+  selectedPoule,
+  selectedRaceColumns: raceColumns,
+  selectedIndividueleCategorieen: individueleCategorieen,
   loadData,
   formatDate,
   pointsValue,
@@ -22,6 +24,9 @@ onMounted(() => {
   <main v-if="!loading && competitionData" class="page-content">
     <section id="individueel" class="panel">
       <h2><i class="fa-regular fa-user" /> Individueel Klassement</h2>
+      <div class="poule-tabs" aria-label="Poules">
+        <button v-for="poule in poules" :key="poule.naam" type="button" :class="{ active: selectedPoule === poule.naam }" :aria-pressed="selectedPoule === poule.naam" @click="selectedPoule = poule.naam">{{ poule.naam }}</button>
+      </div>
       <div class="info-banner">
         Groen gemarkeerde atleten hebben zich geplaatst voor de finale.
       </div>

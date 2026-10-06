@@ -1,12 +1,14 @@
 import { addRxPlugin, createRxDatabase } from 'rxdb'
 import { RxDBQueryBuilderPlugin } from 'rxdb/plugins/query-builder'
+import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema'
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie'
 
 addRxPlugin(RxDBQueryBuilderPlugin)
+addRxPlugin(RxDBMigrationSchemaPlugin)
 
 const crossSchema = {
   title: 'cross schema',
-  version: 0,
+  version: 1,
   primaryKey: 'id',
   type: 'object',
   properties: {
@@ -14,6 +16,7 @@ const crossSchema = {
       type: 'string',
       maxLength: 120,
     },
+    poule: { type: 'string', enum: ['Noord', 'Midden', 'Zuid'] },
     name: {
       type: 'string',
     },
@@ -28,7 +31,7 @@ const crossSchema = {
       type: 'string',
     },
   },
-  required: ['id', 'name', 'association', 'date', 'createdAt'],
+  required: ['poule', 'id', 'name', 'association', 'date', 'createdAt'],
   indexes: ['date'],
 }
 
@@ -261,6 +264,7 @@ export async function getDatabase() {
       await db.addCollections({
         crosses: {
           schema: crossSchema,
+          migrationStrategies: { 1: (doc) => ({ ...doc, poule: 'Noord' }) },
         },
         results: {
           schema: resultSchema,

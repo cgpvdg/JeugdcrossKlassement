@@ -344,7 +344,7 @@ a {
   padding: 14px;
 }
 
-.wedstrijd-card h3 {
+.wedstrijd-card h4 {
   margin: 0 0 12px;
   color: #123f8a;
   min-height: 52px;
@@ -727,3 +727,10 @@ th {
     grid-template-columns: 1fr;
   }
 }
+
+.poule-tabs { display: flex; gap: .5rem; margin: 1rem 0; flex-wrap: wrap; }
+.poule-tabs button { padding: .65rem 1.25rem; border: 1px solid #ccc; border-radius: .5rem; background: white; cursor: pointer; font: inherit; }
+.poule-tabs button.active { background: #174d36; color: white; border-color: #174d36; }
+
+.event-group + .event-group { margin-top: 1.25rem; }
+.event-group h3 { margin-bottom: .5rem; }

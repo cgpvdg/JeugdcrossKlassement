@@ -7,11 +7,16 @@ const {
   error,
   competitionData,
   siteContent,
+  wedstrijdGroepen,
   individueleCategorieen,
   ploegenCategorieen,
   loadData,
   formatDate,
 } = useCompetitionData()
+
+const selectedRacePoule = ref('Noord')
+const racePoules = computed(() => wedstrijdGroepen.value.filter((groep) => groep.key !== 'finale'))
+const visibleRaceGroups = computed(() => wedstrijdGroepen.value.filter((groep) => groep.key === selectedRacePoule.value || groep.key === 'finale'))
 
 const randomIndividueel = ref([])
 const randomPloegen = ref([])
@@ -29,18 +34,6 @@ const reglementLink = computed(() => {
   const base = import.meta.env.BASE_URL || '/'
   return new URL(configured.replace(/^\//, ''), `http://local${base}`).pathname
 })
-
-const wedstrijduitslagen = computed(() =>
-  (siteContent.value.wedstrijdOverzicht || []).map((item) => ({
-    naam: item.titel,
-    datum: item.datum,
-    vereniging: item.vereniging || '',
-    url: item.uitslagUrl || '',
-    ploegUrl: item.ploegenUitslagUrl || '',
-    label: 'Bekijk uitslagen.nl',
-    ploegLabel: 'Ploegen uitslag',
-  })),
-)
 
 function pickRandomItems(items, count = 5) {
   const shuffled = [...items]
@@ -62,6 +55,7 @@ function refreshRandomRankings() {
           plaats: row.plaats,
           naam: row.naam,
           categorie: category.categorie,
+          poule: category.poule,
           totaal: row.totaal,
         })
       }
@@ -76,6 +70,7 @@ function refreshRandomRankings() {
           plaats: row.plaats,
           vereniging: row.vereniging,
           categorie: category.categorie,
+          poule: category.poule,
           totaal: row.totaal,
         })
       }
@@ -139,30 +134,35 @@ watch(
     <aside class="side-column">
       <section id="wedstrijden" class="panel">
         <h2><i class="fa-regular fa-calendar-days" /> Wedstrijden</h2>
-        <div class="event-list">
-          <div
-            v-for="event in wedstrijduitslagen"
-            :key="`${event.datum}-${event.naam}`"
-            class="event-item"
+        <div class="poule-tabs" aria-label="Poule voor wedstrijden">
+          <button
+            v-for="poule in racePoules"
+            :key="poule.key"
+            type="button"
+            :class="{ active: selectedRacePoule === poule.key }"
+            :aria-pressed="selectedRacePoule === poule.key"
+            @click="selectedRacePoule = poule.key"
           >
-            <span class="event-date">{{ formatDate(event.datum) }}</span>
-            <span>
-              <strong>{{ event.naam }}</strong>
-              <small v-if="event.url">
-                <span v-if="event.vereniging">{{ event.vereniging }}</span>
-                <span v-if="event.vereniging"> | </span>
-                <a :href="event.url" target="_blank" rel="noopener noreferrer">{{ event.label || 'Bekijk op uitslagen.nl' }}</a>
-                <span v-if="event.ploegUrl"> | </span>
-                <a v-if="event.ploegUrl" :href="event.ploegUrl" target="_blank" rel="noopener noreferrer">{{ event.ploegLabel }}</a>
-              </small>
-              <small v-else-if="event.vereniging || event.ploegUrl">
-                <span v-if="event.vereniging">{{ event.vereniging }}</span>
-                <span v-if="event.vereniging && event.ploegUrl"> | </span>
-                <a v-if="event.ploegUrl" :href="event.ploegUrl" target="_blank" rel="noopener noreferrer">{{ event.ploegLabel }}</a>
-              </small>
-            </span>
-          </div>
+            {{ poule.titel }}
+          </button>
         </div>
+        <section v-for="groep in visibleRaceGroups" :key="groep.key" class="event-group">
+          <h3>{{ groep.titel }}</h3>
+          <div class="event-list">
+            <div v-for="(event, index) in groep.wedstrijden" :key="index" class="event-item">
+              <span class="event-date">{{ event.datum ? formatDate(event.datum) : 'Nog te bepalen' }}</span>
+              <span>
+                <strong>{{ event.titel }}</strong>
+                <small>{{ event.vereniging || 'Vereniging nog te bepalen' }}</small>
+                <small v-if="event.uitslagUrl || event.ploegenUitslagUrl">
+                  <a v-if="event.uitslagUrl" :href="event.uitslagUrl" target="_blank" rel="noopener noreferrer">Bekijk uitslagen.nl</a>
+                  <span v-if="event.uitslagUrl && event.ploegenUitslagUrl"> | </span>
+                  <a v-if="event.ploegenUitslagUrl" :href="event.ploegenUitslagUrl" target="_blank" rel="noopener noreferrer">Ploegen uitslag</a>
+                </small>
+              </span>
+            </div>
+          </div>
+        </section>
       </section>
     </aside>
 
@@ -179,14 +179,16 @@ watch(
             <tr>
               <th>Pos</th>
               <th>Naam</th>
+              <th>Poule</th>
               <th>Categorie</th>
               <th>Punten</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in randomIndividueel" :key="`${row.naam}-${row.categorie}`">
+            <tr v-for="row in randomIndividueel" :key="`${row.naam}-${row.categorie}-${row.poule}`">
               <td>{{ row.plaats }}</td>
               <td>{{ row.naam }}</td>
+              <td>{{ row.poule }}</td>
               <td>{{ row.categorie }}</td>
               <td>{{ row.totaal }}</td>
             </tr>
@@ -206,14 +208,16 @@ watch(
             <tr>
               <th>Pos</th>
               <th>Ploeg</th>
+              <th>Poule</th>
               <th>Categorie</th>
               <th>Punten</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in randomPloegen" :key="`${row.vereniging}-${row.categorie}`">
+            <tr v-for="row in randomPloegen" :key="`${row.vereniging}-${row.categorie}-${row.poule}`">
               <td>{{ row.plaats }}</td>
               <td>{{ row.vereniging }}</td>
+              <td>{{ row.poule }}</td>
               <td>{{ row.categorie }}</td>
               <td>{{ row.totaal }}</td>
             </tr>
