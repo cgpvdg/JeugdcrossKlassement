@@ -11,7 +11,8 @@ function loadRankings() {
     let exported
     downloadTextFile = (name, content) => { exported = JSON.parse(content) }
     showSuccess = () => {}
-    return { allCrosses, allResults, selectedPoule, standingsPerCategory, teamStandingsPerCategory, canHighlightFinalists,
+    showError = (message) => { throw new Error(message) }
+    return { allCrosses, allResults, selectedPoule, exportPoules, db, pendingNameConflicts, chooseAllNameConflicts, isApplyingNameChoices, pendingCrossAssociationChecks, chooseAllAcrossAssociations, isApplyingCrossAssociationChoices, mockRefresh: () => { refreshData = async () => {} }, standingsPerCategory, teamStandingsPerCategory, canHighlightFinalists,
       exportData: () => { exportCompetitionOverview(); return exported } }
   `)(vue.computed, vue.markRaw, () => {}, vue.ref, vue.shallowRef, ['Jongens U16'], (value) => value.toLowerCase())
   return api
@@ -91,3 +92,76 @@ test('site planning contains three races per pool and one shared final', async (
   assert.equal(api.wedstrijdGroepen.value[1].wedstrijden[0].datum, '2026-11-21')
   assert.equal(api.wedstrijdGroepen.value[3].wedstrijden[0].ploegenUitslagUrl, content.wedstrijdOverzicht.finale.ploegenUitslagUrl)
 })
+
+
+test('export supports one or multiple selected pools and refuses an empty selection', () => {
+  const api = loadRankings()
+  api.selectedPoule.value = 'Zuid'
+  api.exportPoules.value = ['Midden']
+  assert.deepEqual(api.exportData().poules.map((pool) => pool.naam), ['Midden'])
+  api.exportPoules.value = ['Zuid', 'Noord']
+  const exported = api.exportData()
+  assert.equal(exported.version, 2)
+  assert.deepEqual(exported.poules.map((pool) => pool.naam), ['Noord', 'Zuid'])
+  assert.equal(api.selectedPoule.value, 'Zuid')
+  api.exportPoules.value = []
+  assert.throws(() => api.exportData(), /Selecteer minstens één poule/)
+  assert.equal(api.selectedPoule.value, 'Zuid')
+})
+
+
+for (const side of ['left', 'right']) {
+  test('bulk association decisions choose all ' + side + ' options from the current pool snapshot', async () => {
+    const api = loadRankings()
+    api.mockRefresh()
+    api.selectedPoule.value = 'Midden'
+    api.allCrosses.value = ['Midden', 'Zuid'].flatMap((poule) => [1, 2].map((n) => ({ id: poule + n, poule })))
+    api.allResults.value = api.allCrosses.value.flatMap((race) => ['Jan Jansen', 'Piet Peters'].map((name) => ({ crossId: race.id, category: 'Jongens U16', participantName: name, participantKey: name.toLowerCase(), association: race.id.endsWith('1') ? 'Club A' : 'Club B' })))
+    const checks = [...api.pendingCrossAssociationChecks.value]
+    assert.equal(checks.length, 2)
+    const saved = []
+    api.db.value = { crossAssociationDecisions: { upsert: async (decision) => {
+      saved.push(decision)
+      api.allResults.value = [] // UI recomputes; both original checks must still be saved.
+    } } }
+    await api.chooseAllAcrossAssociations(side)
+    assert.equal(saved.length, 2)
+    for (let i = 0; i < checks.length; i += 1) {
+      assert.equal(saved[i].id, checks[i].id)
+      assert.ok(saved[i].id.startsWith('Midden::'))
+      assert.equal(saved[i].canonicalParticipantKey, checks[i][side + 'ParticipantKey'])
+      assert.equal(saved[i].canonicalAssociationKey, checks[i][side + 'AssociationKey'])
+      assert.equal(saved[i].canonicalParticipantName, checks[i][side + 'Name'])
+      assert.equal(saved[i].decision, 'same')
+    }
+    assert.equal(api.isApplyingCrossAssociationChoices.value, false)
+  })
+}
+
+
+for (const side of ['left', 'right']) {
+  test('bulk name conflicts choose all ' + side + ' options within the selected pool', async () => {
+    const api = loadRankings()
+    api.mockRefresh()
+    api.selectedPoule.value = 'Zuid'
+    api.allCrosses.value = [{ id: 'south', poule: 'Zuid' }, { id: 'north', poule: 'Noord' }]
+    api.allResults.value = ['south', 'north'].flatMap((crossId) => ['Jan Jansen', 'Jan Janssen', 'Piet Peters', 'Piet Peeters'].map((name) => ({ crossId, category: 'Jongens U16', participantName: name, participantKey: name.toLowerCase(), association: 'Club' })))
+    const conflicts = [...api.pendingNameConflicts.value]
+    assert.equal(conflicts.length, 2)
+    const saved = []
+    api.db.value = { participantDecisions: { upsert: async (decision) => {
+      saved.push(decision)
+      api.allResults.value = []
+    } } }
+    await api.chooseAllNameConflicts(side)
+    assert.equal(saved.length, conflicts.length)
+    for (let i = 0; i < conflicts.length; i += 1) {
+      assert.equal(saved[i].id, conflicts[i].id)
+      assert.ok(saved[i].id.startsWith('Zuid::'))
+      assert.equal(saved[i].canonicalKey, conflicts[i][side + 'Key'])
+      assert.equal(saved[i].canonicalName, conflicts[i][side + 'Name'])
+      assert.equal(saved[i].decision, 'same')
+    }
+    assert.equal(api.isApplyingNameChoices.value, false)
+  })
+}

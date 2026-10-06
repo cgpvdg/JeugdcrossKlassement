@@ -20,6 +20,9 @@ let notificationTimeoutId = null
 
 const POULES = ['Noord', 'Midden', 'Zuid']
 const selectedPoule = ref('Noord')
+const exportPoules = ref([...POULES])
+const isApplyingCrossAssociationChoices = ref(false)
+const isApplyingNameChoices = ref(false)
 const uploadPoule = ref('')
 const allCrosses = ref([])
 const crosses = computed(() => allCrosses.value.filter((cross) => cross.poule === selectedPoule.value))
@@ -414,7 +417,7 @@ async function exportAllData() {
     }
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    downloadTextFile(`jeugdcross-export-${timestamp}.json`, JSON.stringify(payload, null, 2))
+    downloadTextFile(`jeugdcross-wedstrijd-data-${timestamp}.json`, JSON.stringify(payload, null, 2))
     showSuccess('Export aangemaakt.')
   }
   catch (error) {
@@ -426,7 +429,9 @@ function exportCompetitionOverview() {
   resetMessages()
   const previousPoule = selectedPoule.value
   try {
-    const poules = POULES.map((poule) => {
+    const selected = POULES.filter((poule) => exportPoules.value.includes(poule))
+    if (!selected.length) throw new Error('Selecteer minstens één poule om te exporteren.')
+    const poules = selected.map((poule) => {
     selectedPoule.value = poule
     const wedstrijdData = crosses.value.map((cross) => ({
       id: cross.id,
@@ -491,7 +496,7 @@ function exportCompetitionOverview() {
     const payload = { generatedAt: new Date().toISOString(), version: 2, poules }
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    downloadTextFile(`jeugdcross-competitie-export-${timestamp}.json`, JSON.stringify(payload, null, 2))
+    downloadTextFile(`jeugdcross-poule-data-${timestamp}.json`, JSON.stringify(payload, null, 2))
     showSuccess('Wedstrijdexport aangemaakt.')
   }
   catch (error) {
@@ -1197,10 +1202,9 @@ const pendingCrossAssociationChecks = computed(() => {
   return Array.from(uniqueChecks.values()).sort((left, right) => right.similarity - left.similarity)
 })
 
-async function chooseSameAcrossAssociations(check, preferredSide) {
-  resetMessages()
+function sameAcrossAssociationsDecision(check, preferredSide) {
   const useLeft = preferredSide === 'left'
-  await db.value.crossAssociationDecisions.upsert({
+  return {
     id: check.id,
     category: check.category,
     leftParticipantKey: check.leftParticipantKey,
@@ -1213,12 +1217,43 @@ async function chooseSameAcrossAssociations(check, preferredSide) {
     canonicalAssociationKey: useLeft ? check.leftAssociationKey : check.rightAssociationKey,
     canonicalAssociationName: useLeft ? check.leftAssociation : check.rightAssociation,
     updatedAt: new Date().toISOString(),
-  })
+  }
+}
+
+async function chooseSameAcrossAssociations(check, preferredSide) {
+  if (isApplyingCrossAssociationChoices.value) return
+  resetMessages()
+  await db.value.crossAssociationDecisions.upsert(sameAcrossAssociationsDecision(check, preferredSide))
   await refreshData()
-  showSuccess(`Samengevoegd over verenigingen als dezelfde deelnemer: ${useLeft ? check.leftName : check.rightName}.`)
+  showSuccess(`Samengevoegd over verenigingen als dezelfde deelnemer: ${preferredSide === 'left' ? check.leftName : check.rightName}.`)
+}
+
+async function chooseAllAcrossAssociations(preferredSide) {
+  if (isApplyingCrossAssociationChoices.value) return
+  const decisions = pendingCrossAssociationChecks.value.map((check) => sameAcrossAssociationsDecision(check, preferredSide))
+  if (!decisions.length) return
+  resetMessages()
+  isApplyingCrossAssociationChoices.value = true
+  let saved = 0
+  try {
+    for (const decision of decisions) {
+      await db.value.crossAssociationDecisions.upsert(decision)
+      saved += 1
+    }
+    await refreshData()
+    showSuccess(`Alle ${preferredSide === 'left' ? 'A' : 'B'} opties doorgevoerd (${saved} controles).`)
+  }
+  catch (error) {
+    await refreshData()
+    showError(`${saved} van ${decisions.length} keuzes opgeslagen. Opslaan mislukt: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  finally {
+    isApplyingCrossAssociationChoices.value = false
+  }
 }
 
 async function chooseDifferentAcrossAssociations(check) {
+  if (isApplyingCrossAssociationChoices.value) return
   resetMessages()
   await db.value.crossAssociationDecisions.upsert({
     id: check.id,
@@ -1238,28 +1273,55 @@ async function chooseDifferentAcrossAssociations(check) {
   showSuccess('Gemarkeerd als aparte deelnemers (over verenigingen).')
 }
 
-async function chooseSameParticipant(conflict, preferredSide) {
-  resetMessages()
-  const canonicalKey = preferredSide === 'left' ? conflict.leftKey : conflict.rightKey
-  const canonicalName = preferredSide === 'left' ? conflict.leftName : conflict.rightName
-
-  await db.value.participantDecisions.upsert({
+function sameParticipantDecision(conflict, preferredSide) {
+  return {
     id: conflict.id,
     category: conflict.category,
     associationKey: conflict.associationKey,
     leftKey: conflict.leftKey,
     rightKey: conflict.rightKey,
     decision: 'same',
-    canonicalKey,
-    canonicalName,
+    canonicalKey: preferredSide === 'left' ? conflict.leftKey : conflict.rightKey,
+    canonicalName: preferredSide === 'left' ? conflict.leftName : conflict.rightName,
     updatedAt: new Date().toISOString(),
-  })
+  }
+}
 
+async function chooseSameParticipant(conflict, preferredSide) {
+  if (isApplyingNameChoices.value) return
+  resetMessages()
+  const decision = sameParticipantDecision(conflict, preferredSide)
+  await db.value.participantDecisions.upsert(decision)
   await refreshData()
-  showSuccess(`Samengevoegd als dezelfde deelnemer: ${canonicalName}.`)
+  showSuccess(`Samengevoegd als dezelfde deelnemer: ${decision.canonicalName}.`)
+}
+
+async function chooseAllNameConflicts(preferredSide) {
+  if (isApplyingNameChoices.value) return
+  const decisions = pendingNameConflicts.value.map((conflict) => sameParticipantDecision(conflict, preferredSide))
+  if (!decisions.length) return
+  resetMessages()
+  isApplyingNameChoices.value = true
+  let saved = 0
+  try {
+    for (const decision of decisions) {
+      await db.value.participantDecisions.upsert(decision)
+      saved += 1
+    }
+    await refreshData()
+    showSuccess(`Alle ${preferredSide === 'left' ? 'A' : 'B'} opties doorgevoerd (${saved} naamconflicten).`)
+  }
+  catch (error) {
+    await refreshData()
+    showError(`${saved} van ${decisions.length} keuzes opgeslagen. Opslaan mislukt: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  finally {
+    isApplyingNameChoices.value = false
+  }
 }
 
 async function chooseDifferentParticipants(conflict) {
+  if (isApplyingNameChoices.value) return
   resetMessages()
   await db.value.participantDecisions.upsert({
     id: conflict.id,
@@ -1784,6 +1846,10 @@ onMounted(() => {
             <h2 class="h5 mb-3">
               Naamconflicten
             </h2>
+            <div class="d-flex flex-wrap justify-content-end gap-2 mb-3">
+              <button class="btn btn-sm btn-outline-success" type="button" :disabled="isApplyingNameChoices" @click="chooseAllNameConflicts('left')">Alle A opties</button>
+              <button class="btn btn-sm btn-outline-success" type="button" :disabled="isApplyingNameChoices" @click="chooseAllNameConflicts('right')">Alle B opties</button>
+            </div>
             <p class="text-secondary mb-3">
               Vergelijkbare namen binnen dezelfde categorie en vereniging. Kies of dit dezelfde deelnemer is of niet.
             </p>
@@ -1796,7 +1862,7 @@ onMounted(() => {
                     <th>Naam A</th>
                     <th>Naam B</th>
                     <th>Gelijkenis</th>
-                    <th>Actie</th>
+                    <th class="text-end">Actie</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1810,24 +1876,27 @@ onMounted(() => {
                     <td>{{ conflict.rightName }}</td>
                     <td>{{ Math.round(conflict.similarity * 100) }}%</td>
                     <td>
-                      <div class="d-flex flex-wrap gap-2">
+                      <div class="d-flex flex-nowrap justify-content-end gap-2 text-nowrap">
                         <button
                           class="btn btn-sm btn-outline-success"
                           type="button"
+                          :disabled="isApplyingNameChoices"
                           @click="chooseSameParticipant(conflict, 'left')"
                         >
-                          Zelfde als {{ conflict.leftName }}
+                          Kies A
                         </button>
                         <button
                           class="btn btn-sm btn-outline-success"
                           type="button"
+                          :disabled="isApplyingNameChoices"
                           @click="chooseSameParticipant(conflict, 'right')"
                         >
-                          Zelfde als {{ conflict.rightName }}
+                          Kies B
                         </button>
                         <button
                           class="btn btn-sm btn-outline-secondary"
                           type="button"
+                          :disabled="isApplyingNameChoices"
                           @click="chooseDifferentParticipants(conflict)"
                         >
                           Aparte deelnemers
@@ -1849,6 +1918,10 @@ onMounted(() => {
             <h2 class="h5 mb-3">
               Controle Dubbele Namen Over Verenigingen
             </h2>
+            <div class="d-flex flex-wrap justify-content-end gap-2 mb-3">
+              <button class="btn btn-sm btn-outline-success" type="button" :disabled="isApplyingCrossAssociationChoices" @click="chooseAllAcrossAssociations('left')">Alle A opties</button>
+              <button class="btn btn-sm btn-outline-success" type="button" :disabled="isApplyingCrossAssociationChoices" @click="chooseAllAcrossAssociations('right')">Alle B opties</button>
+            </div>
             <p class="text-secondary mb-3">
               Mogelijk dezelfde deelnemer met een andere vereniging. Dit blokkeert niets, maar is bedoeld voor controle.
             </p>
@@ -1862,7 +1935,7 @@ onMounted(() => {
                     <th>Naam B</th>
                     <th>Vereniging B</th>
                     <th>Gelijkenis</th>
-                    <th>Actie</th>
+                    <th class="text-end">Actie</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1877,24 +1950,27 @@ onMounted(() => {
                     <td>{{ check.rightAssociation }}</td>
                     <td>{{ Math.round(check.similarity * 100) }}%</td>
                     <td>
-                      <div class="d-flex flex-wrap gap-2">
+                      <div class="d-flex flex-nowrap justify-content-end gap-2 text-nowrap">
                         <button
                           class="btn btn-sm btn-outline-success"
                           type="button"
+                          :disabled="isApplyingCrossAssociationChoices"
                           @click="chooseSameAcrossAssociations(check, 'left')"
                         >
-                          Zelfde als {{ check.leftName }}
+                          Kies A
                         </button>
                         <button
                           class="btn btn-sm btn-outline-success"
                           type="button"
+                          :disabled="isApplyingCrossAssociationChoices"
                           @click="chooseSameAcrossAssociations(check, 'right')"
                         >
-                          Zelfde als {{ check.rightName }}
+                          Kies B
                         </button>
                         <button
                           class="btn btn-sm btn-outline-secondary"
                           type="button"
+                          :disabled="isApplyingCrossAssociationChoices"
                           @click="chooseDifferentAcrossAssociations(check)"
                         >
                           Aparte deelnemers
@@ -2069,14 +2145,25 @@ onMounted(() => {
               Exporteren
             </h2>
             <p class="text-secondary mb-3">
-              Exporteer de volledige wedstrijd naar JSON inclusief wedstrijden, individueel klassement en ploegenklassement met puntopbouw.
+              Kies de poules die je wilt exporteren, inclusief wedstrijden, individueel klassement en ploegenklassement met puntopbouw.
             </p>
+            <fieldset class="mb-3">
+              <legend class="fs-6">Poules</legend>
+              <div class="d-flex flex-wrap gap-3">
+                <label v-for="poule in POULES" :key="poule" class="form-check">
+                  <input v-model="exportPoules" class="form-check-input" type="checkbox" :value="poule">
+                  <span class="form-check-label">{{ poule }}</span>
+                </label>
+              </div>
+              <p v-if="exportPoules.length === 0" class="text-danger mt-2 mb-0">Selecteer minstens één poule.</p>
+            </fieldset>
             <button
               class="btn btn-primary"
               type="button"
+              :disabled="exportPoules.length === 0"
               @click="exportCompetitionOverview"
             >
-              Exporteer volledige wedstrijd
+              Exporteer geselecteerde poules
             </button>
           </div>
         </section>

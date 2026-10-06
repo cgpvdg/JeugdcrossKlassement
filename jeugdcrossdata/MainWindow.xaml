@@ -320,6 +320,10 @@
                                     ToolTip="Download geselecteerd bestand uit repository"
                                     Click="DownloadRepositoryFileButton_Click" />
                         </Grid>
+                        <TextBlock Text="Bij competitie-data.json worden alleen de poules uit de export vervangen. Overige poules en gegevens blijven behouden."
+                                   Foreground="{StaticResource SecondaryForegroundBrush}"
+                                   Margin="0,8,0,0"
+                                   TextWrapping="Wrap" />
                         <Border x:Name="DropArea"
                                 Margin="0,14,0,0"
                                 Padding="20"

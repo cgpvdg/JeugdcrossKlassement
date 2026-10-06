@@ -292,7 +292,9 @@ public partial class MainWindow : Window
         ToggleBusy(true);
         try
         {
-            SetStatus("Uploaden naar GitHub...");
+            SetStatus(GetSelectedRepositoryFileName() == "competitie-data.json"
+                ? "Bestaande competitiedata ophalen, poules samenvoegen en uploaden naar GitHub..."
+                : "Uploaden naar GitHub...");
             await PersistSettingsAsync();
 
             var repositoryPath = BuildRepositoryPath(GetSelectedRepositoryFileName());
@@ -306,7 +308,7 @@ public partial class MainWindow : Window
 
             if (!uploadResult.TargetUpdated)
             {
-                SetStatus("Geen update nodig: lokale JSON is gelijk aan de huidige repo-versie.");
+                SetStatus("Geen update nodig: de aangeleverde gegevens wijzigen de huidige repo-versie niet.");
                 ShowAlert("Geen wijzigingen", "De inhoud is identiek aan de huidige repo-versie. Daarom is er niets geüpdatet.", AlertType.Info);
                 return;
             }

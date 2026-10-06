@@ -16,7 +16,7 @@
             "datum": "2026-11-21",
             "vereniging": "NOVA",
             "plaats": "Warmenhuizen",
-            "verenigingUrl": "",
+            "verenigingUrl": "https://www.avnova.nl",
             "tijdschemaUrl": "",
             "uitslagUrl": ""
           },
@@ -25,7 +25,7 @@
             "datum": "2027-01-09",
             "vereniging": "ARO’88",
             "plaats": "Obdam",
-            "verenigingUrl": "",
+            "verenigingUrl": "https://www.aro88.nl",
             "tijdschemaUrl": "",
             "uitslagUrl": ""
           },
@@ -34,7 +34,7 @@
             "datum": "2027-02-06",
             "vereniging": "Hera",
             "plaats": "Heerhugowaard",
-            "verenigingUrl": "",
+            "verenigingUrl": "https://www.avhera.nl",
             "tijdschemaUrl": "",
             "uitslagUrl": ""
           }
@@ -48,7 +48,7 @@
             "datum": "2026-11-21",
             "vereniging": "AKU",
             "plaats": "Uithoorn",
-            "verenigingUrl": "",
+            "verenigingUrl": "https://www.aku-uithoorn.nl",
             "tijdschemaUrl": "",
             "uitslagUrl": ""
           },
@@ -57,7 +57,7 @@
             "datum": "2027-01-09",
             "vereniging": "Suomi",
             "plaats": "Santpoort",
-            "verenigingUrl": "",
+            "verenigingUrl": "https://www.avsuomi.nl",
             "tijdschemaUrl": "",
             "uitslagUrl": ""
           },
@@ -66,7 +66,7 @@
             "datum": "2027-02-06",
             "vereniging": "av Monnickendam",
             "plaats": "Monnickendam",
-            "verenigingUrl": "",
+            "verenigingUrl": "https://www.avmonnickendam.nl/",
             "tijdschemaUrl": "",
             "uitslagUrl": ""
           }
@@ -80,7 +80,7 @@
             "datum": "2026-11-21",
             "vereniging": "Altis",
             "plaats": "Amersfoort",
-            "verenigingUrl": "",
+            "verenigingUrl": "https://www.altis.nl",
             "tijdschemaUrl": "",
             "uitslagUrl": ""
           },
@@ -89,7 +89,7 @@
             "datum": "2027-01-09",
             "vereniging": "Hellas",
             "plaats": "Utrecht",
-            "verenigingUrl": "",
+            "verenigingUrl": "https://www.hellasutrecht.nl",
             "tijdschemaUrl": "",
             "uitslagUrl": ""
           },
@@ -98,7 +98,7 @@
             "datum": "2027-02-06",
             "vereniging": "Clytoneus",
             "plaats": "Woerden",
-            "verenigingUrl": "",
+            "verenigingUrl": "https://clytoneus.nl",
             "tijdschemaUrl": "",
             "uitslagUrl": ""
           }
@@ -110,7 +110,7 @@
       "datum": "2027-03-06",
       "vereniging": "AAC",
       "plaats": "Amsterdam",
-      "verenigingUrl": "",
+      "verenigingUrl": "https://www.aacamsterdam.nl",
       "tijdschemaUrl": "",
       "uitslagUrl": "",
       "ploegenUitslagUrl": ""

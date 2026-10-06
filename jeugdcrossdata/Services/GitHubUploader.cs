@@ -10,6 +10,13 @@ namespace jeugdcrossdata.Services;
 
 public sealed class GitHubUploader
 {
+    private readonly Func<HttpClient> _createClient;
+
+    public GitHubUploader(Func<HttpClient>? createClient = null)
+    {
+        _createClient = createClient ?? (() => new HttpClient());
+    }
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -17,7 +24,7 @@ public sealed class GitHubUploader
 
     public async Task ValidatePatAsync(string pat, CancellationToken cancellationToken = default)
     {
-        using var client = new HttpClient();
+        using var client = _createClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", pat);
         client.DefaultRequestHeaders.UserAgent.ParseAdd("jeugdcrossdata-app");
         client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
@@ -34,7 +41,7 @@ public sealed class GitHubUploader
         string branch,
         CancellationToken cancellationToken = default)
     {
-        using var client = new HttpClient();
+        using var client = _createClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", pat);
         client.DefaultRequestHeaders.UserAgent.ParseAdd("jeugdcrossdata-app");
         client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
@@ -59,7 +66,7 @@ public sealed class GitHubUploader
         string localFilePath,
         CancellationToken cancellationToken = default)
     {
-        using var client = new HttpClient();
+        using var client = _createClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", pat);
         client.DefaultRequestHeaders.UserAgent.ParseAdd("jeugdcrossdata-app");
         client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
@@ -69,6 +76,11 @@ public sealed class GitHubUploader
 
         var rawContent = await File.ReadAllTextAsync(localFilePath, cancellationToken);
         var existingFile = await GetExistingFileAsync(client, owner, repository, repositoryPath, branch, cancellationToken);
+
+        if (string.Equals(Path.GetFileName(repositoryPath), "competitie-data.json", StringComparison.OrdinalIgnoreCase))
+        {
+            rawContent = CompetitionDataMerger.Merge(existingFile?.RawContent, rawContent);
+        }
 
         if (existingFile is not null && string.Equals(existingFile.RawContent, rawContent, StringComparison.Ordinal))
         {

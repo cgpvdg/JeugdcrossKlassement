@@ -19,3 +19,7 @@ De competitie-export heeft versie 2:
 ```
 
 De website leest ook de oude competitie-export als Noord. De planning in site-content.json staat onder wedstrijdOverzicht.poules: elke poule heeft een naam en drie wedstrijden. De gezamenlijke finale staat apart onder wedstrijdOverzicht.finale, zonder poule. Beide wedstrijdweergaven gebruiken deze planning, ook als er nog geen uitslagen zijn. De planning bevat de wedstrijden van seizoen 2026–2027. Links die nog niet bekend zijn, blijven leeg en worden niet getoond.
+
+Bij de competitie-export kun je één of meerdere poules selecteren. Standaard zijn alle poules geselecteerd; export zonder poules is niet mogelijk. Het JSON-formaat blijft versie 2 met uitsluitend de geselecteerde poules.
+
+Jeugdcrossdata haalt bij een upload naar competitie-data.json eerst de huidige GitHub-versie op. Alleen de pouleobjecten met een naam die in de export voorkomt worden geheel vervangen (of toegevoegd als ze nog ontbreken). Andere poules en alle bestaande velden buiten poules blijven behouden, ook generatedAt en version. De oude inhoud wordt gearchiveerd en de samengevoegde inhoud wordt met de opgehaalde SHA geüpload. Bij ongeldige of dubbele poules wordt niets geüpload. site-content.json wordt zoals voorheen volledig vervangen.
