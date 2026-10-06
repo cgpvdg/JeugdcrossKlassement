@@ -1,0 +1,119 @@
+{
+  "welkomTitel": "JEUGDCROSS COMPETITIE regio 1 t/m 5",
+  "welkomTekst": "Volg hier alle uitslagen, klassementen en informatie van het seizoen.",
+  "reglementUrl": "/docs/competitiereglement-v2.pdf",
+  "reglementLabel": "Reglement downloaden (PDF)",
+  "seizoenTitel": "Seizoen 2026-2027!",
+  "seizoenTekst": "Volg alle updates van de Jeugdcross Competitie via deze pagina.",
+  "inschrijfformulierUrl": "/docs/inschrijfformulier.xlsx",
+  "wedstrijdOverzicht": {
+    "poules": [
+      {
+        "naam": "Noord",
+        "wedstrijden": [
+          {
+            "titel": "1e jeugdcross competitie wedstrijd",
+            "datum": "2026-11-21",
+            "vereniging": "NOVA",
+            "plaats": "Warmenhuizen",
+            "verenigingUrl": "https://www.avnova.nl",
+            "tijdschemaUrl": "",
+            "uitslagUrl": ""
+          },
+          {
+            "titel": "2e jeugdcross competitie wedstrijd",
+            "datum": "2027-01-09",
+            "vereniging": "ARO’88",
+            "plaats": "Obdam",
+            "verenigingUrl": "https://www.aro88.nl",
+            "tijdschemaUrl": "",
+            "uitslagUrl": ""
+          },
+          {
+            "titel": "3e jeugdcross competitie wedstrijd",
+            "datum": "2027-02-06",
+            "vereniging": "Hera",
+            "plaats": "Heerhugowaard",
+            "verenigingUrl": "https://www.avhera.nl",
+            "tijdschemaUrl": "",
+            "uitslagUrl": ""
+          }
+        ]
+      },
+      {
+        "naam": "Midden",
+        "wedstrijden": [
+          {
+            "titel": "1e jeugdcross competitie wedstrijd",
+            "datum": "2026-11-21",
+            "vereniging": "AKU",
+            "plaats": "Uithoorn",
+            "verenigingUrl": "https://www.aku-uithoorn.nl",
+            "tijdschemaUrl": "",
+            "uitslagUrl": ""
+          },
+          {
+            "titel": "2e jeugdcross competitie wedstrijd",
+            "datum": "2027-01-09",
+            "vereniging": "Suomi",
+            "plaats": "Santpoort",
+            "verenigingUrl": "https://www.avsuomi.nl",
+            "tijdschemaUrl": "",
+            "uitslagUrl": ""
+          },
+          {
+            "titel": "3e jeugdcross competitie wedstrijd",
+            "datum": "2027-02-06",
+            "vereniging": "av Monnickendam",
+            "plaats": "Monnickendam",
+            "verenigingUrl": "https://www.avmonnickendam.nl/",
+            "tijdschemaUrl": "",
+            "uitslagUrl": ""
+          }
+        ]
+      },
+      {
+        "naam": "Zuid",
+        "wedstrijden": [
+          {
+            "titel": "1e jeugdcross competitie wedstrijd",
+            "datum": "2026-11-21",
+            "vereniging": "Altis",
+            "plaats": "Amersfoort",
+            "verenigingUrl": "https://www.altis.nl",
+            "tijdschemaUrl": "",
+            "uitslagUrl": ""
+          },
+          {
+            "titel": "2e jeugdcross competitie wedstrijd",
+            "datum": "2027-01-09",
+            "vereniging": "Hellas",
+            "plaats": "Utrecht",
+            "verenigingUrl": "https://www.hellasutrecht.nl",
+            "tijdschemaUrl": "",
+            "uitslagUrl": ""
+          },
+          {
+            "titel": "3e jeugdcross competitie wedstrijd",
+            "datum": "2027-02-06",
+            "vereniging": "Clytoneus",
+            "plaats": "Woerden",
+            "verenigingUrl": "https://clytoneus.nl",
+            "tijdschemaUrl": "",
+            "uitslagUrl": ""
+          }
+        ]
+      }
+    ],
+    "finale": {
+      "titel": "Finale jeugdcross competitie wedstrijd",
+      "datum": "2027-03-06",
+      "vereniging": "AAC",
+      "plaats": "Amsterdam",
+      "verenigingUrl": "https://www.aacamsterdam.nl",
+      "tijdschemaUrl": "",
+      "uitslagUrl": "",
+      "ploegenUitslagUrl": ""
+    }
+  }
+}
