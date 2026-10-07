@@ -1,9 +1,9 @@
 {
   "welkomTitel": "JEUGDCROSS COMPETITIE",
-  "welkomTekst": "Volg hier alle uitslagen, klassementen en informatie van het seizoen.",
+  "welkomTekst": "Volg hier alle uitslagen, klassementen en informatie van het seizoen 2026-2027",
   "reglementUrl": "/docs/competitiereglement-v2.pdf",
   "reglementLabel": "Reglement downloaden (PDF)",
-  "seizoenTitel": "Seizoen 2026-2027!",
+  "seizoenTitel": "Seizoen 2026-2027",
   "seizoenTekst": "Volg alle updates van de Jeugdcross Competitie via deze pagina.",
   "inschrijfformulierUrl": "/docs/inschrijfformulier.xlsx",
   "wedstrijdOverzicht": {
@@ -23,7 +23,7 @@
           {
             "titel": "2e jeugdcross competitie wedstrijd",
             "datum": "2027-01-09",
-            "vereniging": "ARO’88",
+            "vereniging": "ARO\u201988",
             "plaats": "Obdam",
             "verenigingUrl": "https://www.aro88.nl",
             "tijdschemaUrl": "",
