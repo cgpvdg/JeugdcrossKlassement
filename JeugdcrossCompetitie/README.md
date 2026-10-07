@@ -42,3 +42,12 @@ npm run build
 ```sh
 npm run lint
 ```
+
+
+
+### Run in powershell
+
+```sh
+cd C:\Users\cgpva\Documents\GitHub\JeugdcrossKlassement
+npm.cmd --prefix JeugdcrossCompetitie run dev -- --port 5174 --strictPort
+```
