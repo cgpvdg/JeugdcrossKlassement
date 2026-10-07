@@ -1,6 +1,6 @@
 ﻿#define MyAppName "Jeugd crosscompetitie"
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.2"
+  #define MyAppVersion "1.0.3"
 #endif
 #define MyAppPublisher "CGP Software"
 #define MyAppExeName "jeugdcrossdata.exe"

@@ -21,6 +21,8 @@ public partial class MainWindow : Window
     private UploadSettings _uploadSettings = new();
     private string? _selectedFilePath;
     private bool _isConfigVisible;
+    private bool _isBusy;
+    private SiteContentEditor? _siteEditor;
 
     public MainWindow()
     {
@@ -163,12 +165,13 @@ public partial class MainWindow : Window
     private void DropArea_DragOver(object sender, DragEventArgs e)
     {
         e.Handled = true;
-        e.Effects = HasValidJsonDrop(e) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Effects = !IsSiteEditorMode && !_isBusy && HasValidJsonDrop(e) ? DragDropEffects.Copy : DragDropEffects.None;
     }
 
     private void DropArea_Drop(object sender, DragEventArgs e)
     {
         e.Handled = true;
+        if (IsSiteEditorMode || _isBusy) return;
         if (!HasValidJsonDrop(e))
         {
             ShowAlert("Ongeldig bestand", "Sleep een .json bestand in het vak.", AlertType.Warning);
@@ -220,126 +223,77 @@ public partial class MainWindow : Window
                 repositoryPath,
                 _uploadSettings.Branch);
 
-            var saveDialog = new SaveFileDialog
-            {
-                FileName = fileName,
-                Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
-                AddExtension = true,
-                DefaultExt = ".json",
-                Title = "Download bestand opslaan als"
-            };
-
-            if (saveDialog.ShowDialog() != true)
-            {
-                SetStatus("Download geannuleerd.");
-                return;
-            }
-
-            await File.WriteAllTextAsync(saveDialog.FileName, content);
-            SetStatus($"Bestand gedownload: {saveDialog.FileName}");
-            ShowAlert("Succes", "Bestand succesvol gedownload uit de repository.", AlertType.Success);
+            ShowSiteEditor(new SiteContentEditor(content));
+            SetStatus("Site-inhoud opgehaald. Pas de gewenste waarden aan en klik op Wijzigingen versturen.");
         }
         catch (GitHubTokenInvalidException)
         {
             _config.EncryptedPat = null;
             await PersistSettingsAsync();
-            SetStatus("PAT ongeldig of verlopen. Nieuwe PAT invoeren en opslaan.");
-            ShowAlert("PAT verlopen", "Opgeslagen PAT is ongeldig of verlopen. Voer een nieuwe PAT in en sla op.", AlertType.Warning);
-        }
-        catch (FileNotFoundException ex)
-        {
-            SetStatus(ex.Message);
-            ShowAlert("Niet gevonden", ex.Message, AlertType.Warning);
+            ShowAlert("PAT verlopen", "Voer een nieuwe PAT in en sla op.", AlertType.Warning);
         }
         catch (Exception ex)
         {
-            SetStatus($"Download mislukt: {ex.Message}");
-            ShowAlert("Fout", $"Download mislukt: {ex.Message}", AlertType.Error);
+            SetStatus($"Ophalen mislukt: {ex.Message}");
+            ShowAlert("Fout", ex.Message, AlertType.Error);
         }
-        finally
-        {
-            ToggleBusy(false);
-        }
+        finally { ToggleBusy(false); }
     }
 
     private async void UploadButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_isBusy) return;
         if (!ValidateRequiredInput(out var validationError))
         {
             ShowAlert("Onvolledige invoer", validationError, AlertType.Warning);
             return;
         }
-
         if (string.IsNullOrWhiteSpace(_config.EncryptedPat))
         {
-            ShowAlert("PAT vereist", "Geen PAT opgeslagen. Voer en bewaar eerst een PAT.", AlertType.Warning);
+            ShowAlert("PAT vereist", "Voer en bewaar eerst een PAT.", AlertType.Warning);
             return;
         }
-
         string pat;
-        try
-        {
-            pat = _tokenStore.Decrypt(_config.EncryptedPat);
-        }
+        try { pat = _tokenStore.Decrypt(_config.EncryptedPat); }
         catch
         {
-            ShowAlert("PAT fout", "Opgeslagen PAT kon niet worden gelezen. Voer een nieuwe PAT in.", AlertType.Warning);
             _config.EncryptedPat = null;
             await PersistSettingsAsync();
+            ShowAlert("PAT fout", "Voer een nieuwe PAT in en sla op.", AlertType.Warning);
             return;
         }
-
         ToggleBusy(true);
         try
         {
-            SetStatus(GetSelectedRepositoryFileName() == "competitie-data.json"
-                ? "Bestaande competitiedata ophalen, poules samenvoegen en uploaden naar GitHub..."
-                : "Uploaden naar GitHub...");
+            SetStatus(IsSiteEditorMode ? "Site-wijzigingen versturen naar GitHub..." : "Poules samenvoegen en uploaden naar GitHub...");
             await PersistSettingsAsync();
-
             var repositoryPath = BuildRepositoryPath(GetSelectedRepositoryFileName());
-            var uploadResult = await _gitHubUploader.UploadJsonAsync(
-                pat,
-                _uploadSettings.GitHubOwner,
-                _uploadSettings.RepositoryName,
-                repositoryPath,
-                _uploadSettings.Branch,
-                _selectedFilePath!);
-
-            if (!uploadResult.TargetUpdated)
+            var result = IsSiteEditorMode
+                ? await _gitHubUploader.UploadSiteContentAsync(pat, _uploadSettings.GitHubOwner, _uploadSettings.RepositoryName, repositoryPath, _uploadSettings.Branch, _siteEditor!)
+                : await _gitHubUploader.UploadJsonAsync(pat, _uploadSettings.GitHubOwner, _uploadSettings.RepositoryName, repositoryPath, _uploadSettings.Branch, _selectedFilePath!);
+            if (IsSiteEditorMode && result.SavedContent is not null)
+                ShowSiteEditor(new SiteContentEditor(result.SavedContent));
+            if (!result.TargetUpdated)
             {
-                SetStatus("Geen update nodig: de aangeleverde gegevens wijzigen de huidige repo-versie niet.");
-                ShowAlert("Geen wijzigingen", "De inhoud is identiek aan de huidige repo-versie. Daarom is er niets geüpdatet.", AlertType.Info);
+                SetStatus("Geen wijzigingen om te versturen.");
+                ShowAlert("Geen wijzigingen", "De inhoud is al gelijk aan de huidige repo-versie.", AlertType.Info);
                 return;
             }
-
-            if (uploadResult.ArchiveCreated && !string.IsNullOrWhiteSpace(uploadResult.ArchiveRepositoryPath))
-            {
-                SetStatus($"Upload geslaagd met archief in repo: {uploadResult.ArchiveRepositoryPath}");
-            }
-            else
-            {
-                SetStatus("Upload geslaagd.");
-            }
-
-            ShowAlert("Succes", "JSON-bestand is succesvol geüpload naar GitHub.", AlertType.Success);
+            SetStatus(result.ArchiveCreated ? $"Versturen geslaagd met archief: {result.ArchiveRepositoryPath}" : "Versturen geslaagd.");
+            ShowAlert("Succes", "De gegevens zijn verstuurd naar GitHub.", AlertType.Success);
         }
         catch (GitHubTokenInvalidException)
         {
             _config.EncryptedPat = null;
             await PersistSettingsAsync();
-            SetStatus("PAT ongeldig of verlopen. Nieuwe PAT invoeren en opslaan.");
-            ShowAlert("PAT verlopen", "Opgeslagen PAT is ongeldig of verlopen. Voer een nieuwe PAT in en sla op.", AlertType.Warning);
+            ShowAlert("PAT verlopen", "Voer een nieuwe PAT in en sla op.", AlertType.Warning);
         }
         catch (Exception ex)
         {
-            SetStatus($"Upload mislukt: {ex.Message}");
-            ShowAlert("Fout", $"Upload mislukt: {ex.Message}", AlertType.Error);
+            SetStatus($"Versturen mislukt: {ex.Message}");
+            ShowAlert("Fout", ex.Message, AlertType.Error);
         }
-        finally
-        {
-            ToggleBusy(false);
-        }
+        finally { ToggleBusy(false); }
     }
 
     private async Task PersistSettingsAsync()
@@ -347,142 +301,108 @@ public partial class MainWindow : Window
         _config.SelectedRepositoryFile = GetSelectedRepositoryFileName();
         await _configStore.SaveAsync(_config);
     }
-
     private void SelectFile(string filePath)
     {
+        if (IsSiteEditorMode) return;
         _selectedFilePath = filePath;
         SelectedFileTextBlock.Text = $"Geselecteerd: {filePath}";
         SetStatus("JSON bestand geselecteerd.");
     }
-
     private bool ValidateRequiredInput(out string message)
     {
+        if (IsSiteEditorMode)
+        {
+            message = _siteEditor is null ? "Haal eerst de site-inhoud op." : string.Empty;
+            return _siteEditor is not null;
+        }
         if (RepositoryFileComboBox.SelectedItem is null || string.IsNullOrWhiteSpace(_selectedFilePath))
         {
-            message = "Kies een doelbestand in de repository en selecteer een JSON bestand.";
+            message = "Kies een doelbestand en selecteer een JSON bestand.";
             return false;
         }
-
         if (!File.Exists(_selectedFilePath))
         {
-            message = "Het geselecteerde lokale bronbestand bestaat niet meer.";
+            message = "Het geselecteerde bronbestand bestaat niet meer.";
             return false;
         }
-
         if (!string.Equals(Path.GetExtension(_selectedFilePath), ".json", StringComparison.OrdinalIgnoreCase))
         {
             message = "Alleen JSON bestanden worden ondersteund.";
             return false;
         }
-
         message = string.Empty;
         return true;
     }
-
     private static bool HasValidJsonDrop(DragEventArgs e)
     {
-        if (!e.Data.GetDataPresent(DataFormats.FileDrop))
-        {
-            return false;
-        }
-
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return false;
         var files = (string[]?)e.Data.GetData(DataFormats.FileDrop);
         return files is { Length: 1 } && string.Equals(Path.GetExtension(files[0]), ".json", StringComparison.OrdinalIgnoreCase);
     }
-
-    private string GetSelectedRepositoryFileName()
-    {
-        return (RepositoryFileComboBox.SelectedItem as string ?? "competitie-data.json").Trim();
-    }
-
+    private string GetSelectedRepositoryFileName() => (RepositoryFileComboBox.SelectedItem as string ?? "competitie-data.json").Trim();
     private string BuildRepositoryPath(string repositoryFileName)
     {
         var basePath = (_uploadSettings.RepositoryBasePath ?? string.Empty).Trim().Replace('\\', '/').Trim('/');
-        var fileName = repositoryFileName.Trim().TrimStart('/');
-        return $"{basePath}/{fileName}";
+        return $"{basePath}/{repositoryFileName.Trim().TrimStart('/')}";
     }
-
-    private void SetStatus(string message)
+    private bool IsSiteEditorMode => GetSelectedRepositoryFileName().Equals("site-content.json", StringComparison.OrdinalIgnoreCase);
+    private void RepositoryFileComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        StatusTextBlock.Text = message;
+        if (CompetitionFilePanel is null || SiteEditorPanel is null || UploadButton is null) return;
+        CompetitionFilePanel.Visibility = IsSiteEditorMode ? Visibility.Collapsed : Visibility.Visible;
+        SiteEditorPanel.Visibility = IsSiteEditorMode ? Visibility.Visible : Visibility.Collapsed;
+        DownloadRepositoryFileButton.Visibility = IsSiteEditorMode ? Visibility.Visible : Visibility.Collapsed;
+        UploadButton.Content = IsSiteEditorMode ? "Wijzigingen versturen" : "Upload naar GitHub";
+        ToggleBusy(_isBusy);
     }
-
+    private void ShowSiteEditor(SiteContentEditor editor)
+    {
+        _siteEditor = editor;
+        SiteEditorGroups.ItemsSource = editor.Fields.GroupBy(field => field.Group)
+            .Select(group => new { Key = group.Key, Fields = group.ToArray() }).ToArray();
+    }
+    private void SetStatus(string message) => StatusTextBlock.Text = message;
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ClickCount == 2)
-        {
-            ToggleMaximizeRestore();
-            return;
-        }
-
+        if (e.ClickCount == 2) { ToggleMaximizeRestore(); return; }
         DragMove();
     }
-
-    private void MinimizeButton_Click(object sender, RoutedEventArgs e)
-    {
-        WindowState = WindowState.Minimized;
-    }
-
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
     private void ConfigToggleButton_Click(object sender, RoutedEventArgs e)
     {
         _isConfigVisible = !_isConfigVisible;
         ConfigSection.Visibility = _isConfigVisible ? Visibility.Visible : Visibility.Collapsed;
-        ConfigToggleButton.Background = _isConfigVisible
-            ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(30, 139, 230))
-            : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(27, 45, 74));
-        ConfigToggleButton.BorderBrush = _isConfigVisible
-            ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(72, 166, 255))
-            : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(53, 87, 133));
+        ConfigToggleButton.Background = new System.Windows.Media.SolidColorBrush(_isConfigVisible
+            ? System.Windows.Media.Color.FromRgb(30, 139, 230) : System.Windows.Media.Color.FromRgb(27, 45, 74));
+        ConfigToggleButton.BorderBrush = new System.Windows.Media.SolidColorBrush(_isConfigVisible
+            ? System.Windows.Media.Color.FromRgb(72, 166, 255) : System.Windows.Media.Color.FromRgb(53, 87, 133));
     }
-
-    private void MaximizeRestoreButton_Click(object sender, RoutedEventArgs e)
-    {
-        ToggleMaximizeRestore();
-    }
-
+    private void MaximizeRestoreButton_Click(object sender, RoutedEventArgs e) => ToggleMaximizeRestore();
     private void Window_StateChanged(object? sender, EventArgs e)
     {
-        RootContainer.Margin = WindowState == WindowState.Maximized
-            ? new Thickness(8)
-            : new Thickness(0);
+        RootContainer.Margin = WindowState == WindowState.Maximized ? new Thickness(8) : new Thickness(0);
         MaximizeRestoreButton.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
     }
-
-    private void CloseButton_Click(object sender, RoutedEventArgs e)
-    {
-        Close();
-    }
-
-    private void ToggleMaximizeRestore()
-    {
-        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-    }
-
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+    private void ToggleMaximizeRestore() => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
     private void ToggleBusy(bool isBusy)
     {
+        _isBusy = isBusy;
         Mouse.OverrideCursor = isBusy ? Cursors.Wait : null;
-        UploadButton.IsEnabled = !isBusy;
-        DownloadRepositoryFileButton.IsEnabled = !isBusy;
+        UploadButton.IsEnabled = !isBusy && (!IsSiteEditorMode || _siteEditor is not null);
+        DownloadRepositoryFileButton.IsEnabled = !isBusy && IsSiteEditorMode;
         BrowseButton.IsEnabled = !isBusy;
+        SiteEditorGroups.IsEnabled = !isBusy;
+        TopSiteUploadButton.IsEnabled = !isBusy && _siteEditor is not null;
         RepositoryFileComboBox.IsEnabled = !isBusy;
         SavePatButton.IsEnabled = !isBusy;
         TestPatButton.IsEnabled = !isBusy;
         ClearPatButton.IsEnabled = !isBusy;
     }
-
-    private void ShowAlert(string title, string message, AlertType type)
-    {
-        ModernAlertWindow.Show(this, title, message, type);
-    }
-
+    private void ShowAlert(string title, string message, AlertType type) => ModernAlertWindow.Show(this, title, message, type);
     private void SetWindowIcon()
     {
         var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "logo.png");
-        if (!File.Exists(iconPath))
-        {
-            return;
-        }
-
-        Icon = BitmapFrame.Create(new Uri(iconPath, UriKind.Absolute));
+        if (File.Exists(iconPath)) Icon = BitmapFrame.Create(new Uri(iconPath, UriKind.Absolute));
     }
 }

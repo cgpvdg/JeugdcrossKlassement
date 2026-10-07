@@ -41,6 +41,8 @@ public sealed class GitHubUploader
         string branch,
         CancellationToken cancellationToken = default)
     {
+        if (!string.Equals(Path.GetFileName(repositoryPath), "site-content.json", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Alleen site-content.json kan in de editor worden opgehaald.");
         using var client = _createClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", pat);
         client.DefaultRequestHeaders.UserAgent.ParseAdd("jeugdcrossdata-app");
@@ -66,6 +68,8 @@ public sealed class GitHubUploader
         string localFilePath,
         CancellationToken cancellationToken = default)
     {
+        if (string.Equals(Path.GetFileName(repositoryPath), "site-content.json", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Bewerk site-content.json in de app; handmatige bestandsupload is niet beschikbaar.");
         using var client = _createClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", pat);
         client.DefaultRequestHeaders.UserAgent.ParseAdd("jeugdcrossdata-app");
@@ -82,6 +86,30 @@ public sealed class GitHubUploader
             rawContent = CompetitionDataMerger.Merge(existingFile?.RawContent, rawContent);
         }
 
+        return await UploadPreparedAsync(client, owner, repository, repositoryPath, branch, rawContent, existingFile, cancellationToken);
+    }
+
+    public async Task<UploadResult> UploadSiteContentAsync(string pat, string owner, string repository,
+        string repositoryPath, string branch, SiteContentEditor editor, CancellationToken cancellationToken = default)
+    {
+        if (!string.Equals(Path.GetFileName(repositoryPath), "site-content.json", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("De editor kan alleen site-content.json versturen.");
+        using var client = _createClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", pat);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("jeugdcrossdata-app");
+        client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
+        await ValidateTokenAsync(client, cancellationToken);
+        var existingFile = await GetExistingFileAsync(client, owner, repository, repositoryPath, branch, cancellationToken)
+            ?? throw new FileNotFoundException("Site-inhoud bestaat niet meer op GitHub. Haal de inhoud opnieuw op.");
+        var rawContent = editor.ApplyTo(existingFile.RawContent);
+        var result = await UploadPreparedAsync(client, owner, repository, repositoryPath, branch, rawContent, existingFile, cancellationToken);
+        return result with { SavedContent = rawContent };
+    }
+
+    private static async Task<UploadResult> UploadPreparedAsync(HttpClient client, string owner, string repository,
+        string repositoryPath, string branch, string rawContent, ExistingFile? existingFile, CancellationToken cancellationToken)
+    {
         if (existingFile is not null && string.Equals(existingFile.RawContent, rawContent, StringComparison.Ordinal))
         {
             return new UploadResult(TargetUpdated: false, ArchiveCreated: false, ArchiveRepositoryPath: null);
@@ -247,6 +275,6 @@ public sealed class GitHubUploader
 
     private sealed record UploadRequest(string Message, string Content, string Branch, string? Sha);
 
-    public sealed record UploadResult(bool TargetUpdated, bool ArchiveCreated, string? ArchiveRepositoryPath);
+    public sealed record UploadResult(bool TargetUpdated, bool ArchiveCreated, string? ArchiveRepositoryPath, string? SavedContent = null);
 }
 

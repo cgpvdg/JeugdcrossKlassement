@@ -79,11 +79,67 @@ try
     await File.WriteAllTextAsync(tempFile, siteText);
     var site = new RecordingHandler("{\"welkomTekst\":\"Old\"}");
     var siteUploader = new GitHubUploader(() => new HttpClient(site, disposeHandler: false));
-    await siteUploader.UploadJsonAsync("test-only", "owner", "repo", "data/site-content.json", "master", tempFile);
-    Check(site.Writes[1].Content == siteText, "Site content must still be replaced");
+    var siteEditor = new SiteContentEditor("{\"welkomTekst\":\"Old\"}");
+    siteEditor.Fields.Single().Value = "Updated";
+    await siteUploader.UploadSiteContentAsync("test-only", "owner", "repo", "data/site-content.json", "master", siteEditor);
+    Check(JsonNode.DeepEquals(JsonNode.Parse(site.Writes[1].Content), JsonNode.Parse(siteText)), "Site values were not updated");
+    var denied = false;
+    try { await siteUploader.DownloadFileContentAsync("test-only", "owner", "repo", "data/competitie-data.json", "master"); }
+    catch (InvalidOperationException) { denied = true; }
+    Check(denied, "Competition download allowed");
+    denied = false;
+    try { await siteUploader.UploadJsonAsync("test-only", "owner", "repo", "data/site-content.json", "master", tempFile); }
+    catch (InvalidOperationException) { denied = true; }
+    Check(denied, "Manual site file upload allowed");
     Console.WriteLine("PASS: mocked GitHub upload archives original, merges before PUT, uses SHA, skips no-op and rejects invalid data");
 }
 finally { File.Delete(tempFile); }
+
+var siteContent = File.ReadAllText("JeugdcrossCompetitie/public/data/site-content.json");
+var editor = new SiteContentEditor(siteContent);
+Check(editor.Fields.Count == 81, "Not all site properties exposed");
+var date = editor.Fields.Single(item => item.PropertyPath == "wedstrijdOverzicht / poules / 1 / wedstrijden / 0 / datum");
+Check(date.Group.Contains("Midden"), "Pool context missing");
+date.Value = "2026-11-22";
+var edited = JsonNode.Parse(editor.ApplyTo(siteContent))!;
+Check(edited["wedstrijdOverzicht"]!["poules"]![1]!["wedstrijden"]![0]!["datum"]!.GetValue<string>() == date.Value, "Date not applied");
+Check(edited["wedstrijdOverzicht"]!["poules"]!.AsArray().Count == 3, "Pools changed");
+Check(edited["wedstrijdOverzicht"]!["poules"]![1]!["wedstrijden"]!.AsArray().Count == 3, "Race array changed");
+var expected = JsonNode.Parse(siteContent)!;
+expected["wedstrijdOverzicht"]!["poules"]![1]!["wedstrijden"]![0]!["datum"] = date.Value;
+Check(JsonNode.DeepEquals(expected, edited), "Unedited properties changed");
+var concurrent = JsonNode.Parse(siteContent)!;
+concurrent["welkomTitel"] = "Changed elsewhere";
+Check(JsonNode.Parse(editor.ApplyTo(concurrent.ToJsonString()))!["welkomTitel"]!.GetValue<string>() == "Changed elsewhere", "Concurrent unrelated change lost");
+concurrent["wedstrijdOverzicht"]!["poules"]![1]!["wedstrijden"]![0]!["datum"] = "other";
+var conflict = false;
+try { editor.ApplyTo(concurrent.ToJsonString()); } catch (InvalidOperationException) { conflict = true; }
+Check(conflict, "Concurrent edited-field conflict accepted");
+var shape = JsonNode.Parse(siteContent)!;
+shape["extra"] = "new";
+conflict = false;
+try { editor.ApplyTo(shape.ToJsonString()); } catch (InvalidOperationException) { conflict = true; }
+Check(conflict, "Changed property structure accepted");
+shape = JsonNode.Parse(siteContent)!;
+shape["wedstrijdOverzicht"]!["poules"]!.AsArray().RemoveAt(0);
+conflict = false;
+try { editor.ApplyTo(shape.ToJsonString()); } catch (InvalidOperationException) { conflict = true; }
+Check(conflict, "Changed array size accepted");
+shape = JsonNode.Parse(siteContent)!;
+var array = shape["wedstrijdOverzicht"]!["poules"]!.AsArray();
+var first = array[0]!.DeepClone(); var second = array[1]!.DeepClone();
+array[0] = second; array[1] = first;
+conflict = false;
+try { editor.ApplyTo(shape.ToJsonString()); } catch (InvalidOperationException) { conflict = true; }
+Check(conflict, "Reordered pools accepted");
+var typed = new SiteContentEditor("{\"count\":3,\"enabled\":true}");
+typed.Fields.Single(item => item.PropertyPath == "enabled").Value = "false";
+Check(JsonNode.Parse(typed.ApplyTo("{\"count\":3,\"enabled\":true}"))!["enabled"]!.GetValue<bool>() == false, "Boolean value cannot change");
+typed.Fields.Single(item => item.PropertyPath == "count").Value = "\"wrong type\"";
+conflict = false;
+try { typed.ApplyTo("{\"count\":3,\"enabled\":true}"); } catch (InvalidOperationException) { conflict = true; }
+Check(conflict, "Value type can change");
+Console.WriteLine("PASS: editor preserves properties, arrays and value types; labels and concurrent changes checked");
 
 sealed class RecordingHandler(string existing) : HttpMessageHandler
 {

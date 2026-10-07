@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../jeugdcrossdata/Services/SiteContentEditor.cs" Link="SiteContentEditor.cs" />
     <Compile Include="../../jeugdcrossdata/Services/CompetitionDataMerger.cs" Link="CompetitionDataMerger.cs" />
     <Compile Include="../../jeugdcrossdata/Services/GitHubUploader.cs" Link="GitHubUploader.cs" />
     <Compile Include="../../jeugdcrossdata/Services/GitHubTokenInvalidException.cs" Link="GitHubTokenInvalidException.cs" />

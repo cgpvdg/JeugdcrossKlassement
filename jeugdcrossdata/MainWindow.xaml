@@ -242,7 +242,7 @@
                                    Foreground="White"
                                    FontSize="30"
                                    FontWeight="Bold" />
-                        <TextBlock Text="Upload JSON-bestanden direct naar GitHub."
+                        <TextBlock Text="Upload pouledata en bewerk de site-inhoud vanuit deze app."
                                    Foreground="{StaticResource SecondaryForegroundBrush}"
                                    Margin="0,6,0,0"
                                    FontSize="14" />
@@ -286,7 +286,7 @@
 
                 <Border Grid.Row="2" Style="{StaticResource CardStyle}" Margin="0,16,0,0">
                     <StackPanel>
-                        <TextBlock Text="JSON bestand"
+                        <TextBlock Text="Gegevens"
                                    Foreground="White"
                                    FontSize="18"
                                    FontWeight="SemiBold" />
@@ -302,7 +302,8 @@
                             <ComboBox x:Name="RepositoryFileComboBox"
                                       Grid.Column="0"
                                       Margin="0"
-                                      Style="{StaticResource ModernComboBoxStyle}">
+                                      Style="{StaticResource ModernComboBoxStyle}"
+                                      SelectionChanged="RepositoryFileComboBox_SelectionChanged">
                                 <ComboBox.Resources>
                                     <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#111C33" />
                                     <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#111C33" />
@@ -315,11 +316,12 @@
                             </ComboBox>
                             <Button x:Name="DownloadRepositoryFileButton"
                                     Grid.Column="2"
-                                    Content="&#xE896;"
-                                    Style="{StaticResource IconButtonStyle}"
-                                    ToolTip="Download geselecteerd bestand uit repository"
+                                    Content="Site-inhoud ophalen"
+                                    Style="{StaticResource SecondaryButtonStyle}" Margin="0"
+                                    ToolTip="Haal site-content.json op en bewerk de bestaande waarden"
                                     Click="DownloadRepositoryFileButton_Click" />
                         </Grid>
+                        <StackPanel x:Name="CompetitionFilePanel">
                         <TextBlock Text="Bij competitie-data.json worden alleen de poules uit de export vervangen. Overige poules en gegevens blijven behouden."
                                    Foreground="{StaticResource SecondaryForegroundBrush}"
                                    Margin="0,8,0,0"
@@ -355,6 +357,38 @@
                                     Content="Bestand kiezen"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     Click="BrowseButton_Click" />
+                        </StackPanel>
+                        </StackPanel>
+                        <StackPanel x:Name="SiteEditorPanel" Visibility="Collapsed" Margin="0,12,0,0">
+                            <TextBlock Text="Haal de site-inhoud op om bestaande waarden te bewerken. De properties, volgorde en aantallen wedstrijden blijven vast."
+                                       Foreground="{StaticResource SecondaryForegroundBrush}" TextWrapping="Wrap" />
+                            <Button x:Name="TopSiteUploadButton" Content="Wijzigingen versturen" HorizontalAlignment="Right"
+                                    Style="{StaticResource PrimaryButtonStyle}" Click="UploadButton_Click" />
+                            <ItemsControl x:Name="SiteEditorGroups" Margin="0,12,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Expander IsExpanded="False" Foreground="White" Margin="0,0,0,12" HorizontalContentAlignment="Stretch">
+                                            <Expander.Header><TextBlock Text="{Binding Key}" FontWeight="SemiBold" TextWrapping="Wrap" /></Expander.Header>
+                                            <ItemsControl ItemsSource="{Binding Fields}" Margin="12,8,0,0">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="0,0,0,12">
+                                                            <TextBlock Text="{Binding Label}" Foreground="White" FontWeight="SemiBold" />
+                                                            <TextBlock Text="{Binding PropertyPath}" Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="11" TextWrapping="Wrap" />
+                                                            <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                     IsReadOnly="{Binding IsReadOnly}" Style="{StaticResource ModernTextBoxStyle}"
+                                                                     TextWrapping="Wrap" AcceptsReturn="True" MaxHeight="110" VerticalScrollBarVisibility="Auto" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Expander>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+
                             <Button x:Name="UploadButton"
                                     Content="Upload naar GitHub"
                                     Style="{StaticResource PrimaryButtonStyle}"
