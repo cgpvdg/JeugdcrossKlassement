@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="Jeugdcross.Klassment/Jeugdcross.Klassment.csproj" />
+  <Project Path="tests/Jeugdcross.Klassment.Tests/Jeugdcross.Klassment.Tests.csproj" />
   <Project Path="jeugdcrossdata/jeugdcrossdata.csproj" />
   <Project Path="JeugdcrossKlassement/jeugdcrossklassement.esproj">
     <Build />
