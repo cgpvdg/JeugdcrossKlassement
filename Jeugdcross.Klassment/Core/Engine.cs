@@ -79,7 +79,7 @@ public static class Engine
  public static List<Standing> Teams(Competition data,string poule)
  {
   var races=Races(data,poule); var output=new List<Standing>();
-  foreach(var category in Resolve(data,poule).GroupBy(x=>Categories.Team(x.Row.Category)))
+  foreach(var category in TeamResults(data,poule).GroupBy(x=>Categories.Team(x.Row.Category)))
   {
    var rows=new List<Standing>();
    foreach(var club in category.GroupBy(x=>Parser.Key(x.Row.Association)))
@@ -102,6 +102,28 @@ public static class Engine
   return output.OrderBy(x=>Array.IndexOf(order,x.Category)).ToList();
  }
  public static bool FinalsReady(Competition data,string poule) => Races(data,poule).Count==3 && Races(data,poule).All(r=>r.Count>0);
+ public static List<(Race Race,Result Row)> TeamResults(Competition data,string poule)
+ {
+  var results=Resolve(data,poule);
+  foreach(var group in results.Where(x=>x.Row.Category is "Mannen U20" or "Mannen U18" or "Vrouwen U20" or "Vrouwen U18").GroupBy(x=>(x.Race.Id,Category:Categories.Team(x.Row.Category))))
+  {
+   var ordered=group.Select(x=>(x.Row,Seconds:FinishSeconds(x.Row.Time))).OrderBy(x=>x.Seconds).ThenBy(x=>x.Row.Name).ToList();
+   int place=0;int previous=-1;
+   for(int i=0;i<ordered.Count;i++)
+   {
+    if(ordered[i].Seconds!=previous)place=i+1;
+    previous=ordered[i].Seconds;
+    ordered[i].Row.Points=place;
+   }
+  }
+  return results;
+ }
+ private static int FinishSeconds(string time)
+ {
+  var parts=time.Split(':');
+  if(parts.Length is <2 or >3||parts.Any(p=>!int.TryParse(p,out var n)||n<0)||parts.Skip(1).Any(p=>int.Parse(p)>59))throw new InvalidDataException("Een geldige tijd is nodig voor het gecombineerde U20/U18-ploegenklassement: "+time);
+  return parts.Aggregate(0,(total,p)=>checked(total*60+int.Parse(p)));
+ }
  private static void Rank(List<Standing> rows,bool team)
  {
   rows.Sort((a,b)=> { int n=b.Eligible.CompareTo(a.Eligible); if(n==0)n=a.Total.CompareTo(b.Total); if(n==0)n=b.Starts.CompareTo(a.Starts); return n!=0?n:string.Compare(team?a.Association:a.Name,team?b.Association:b.Name,System.Globalization.CultureInfo.GetCultureInfo("nl-NL"),System.Globalization.CompareOptions.None); });

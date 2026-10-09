@@ -24,17 +24,17 @@ public static class ExcelExport
  private static void WriteStandings(IXLWorksheet sheet,List<Standing> standings,bool team,Competition data,string poule)
  {
   var races=Engine.Races(data,poule);
-  Header(sheet,["Categorie","Plaats",team?"Ploeg":"Deelnemer","Vereniging",..Enumerable.Range(0,3).Select(i=>i<races.Count?$"W{i+1} · {races[i].Label}":$"Wedstrijd {i+1}"),"Starts","Bonus","Totaal","Status","Puntopbouw"]);
+  Header(sheet,["Categorie","Plaats",team?"Ploeg":"Deelnemer","Vereniging",..Enumerable.Range(0,3).Select(i=>i<races.Count?$"W{i+1} · {races[i].Label}":$"Wedstrijd {i+1}"),"Starts",..(team?Array.Empty<string>():new[]{"Bonus"}),"Totaal","Status","Puntopbouw"]);
   int i=2;
   foreach(var r in standings)
   {
    sheet.Cell(i,1).Value=r.CategoryLabel; if(r.Place.HasValue) sheet.Cell(i,2).Value=r.Place.Value;
    sheet.Cell(i,3).Value=team?r.Association:r.Name; sheet.Cell(i,4).Value=r.Association;
    for(int j=0;j<3;j++) if(r.Scores[j].HasValue) sheet.Cell(i,5+j).Value=r.Scores[j]!.Value;
-   sheet.Cell(i,8).Value=r.Starts; sheet.Cell(i,9).Value=r.Bonus; sheet.Cell(i,10).Value=r.Total; sheet.Cell(i,11).Value=r.Status; sheet.Cell(i,12).Value=r.Breakdown;
-   if(r.Qualified) sheet.Range(i,1,i,12).Style.Fill.BackgroundColor=XLColor.FromHtml("#DCFCE7"); i++;
+   sheet.Cell(i,8).Value=r.Starts; int column=9; if(!team)sheet.Cell(i,column++).Value=r.Bonus; sheet.Cell(i,column++).Value=r.Total; sheet.Cell(i,column++).Value=r.Status; sheet.Cell(i,column).Value=r.Breakdown;
+   if(r.Qualified) sheet.Range(i,1,i,team?11:12).Style.Fill.BackgroundColor=XLColor.FromHtml("#DCFCE7"); i++;
   }
-  Finish(sheet,i-1,12);
+  Finish(sheet,i-1,team?11:12);
  }
  private static void Header(IXLWorksheet s,string[] names) { for(int i=0;i<names.Length;i++) s.Cell(1,i+1).Value=names[i]; }
  private static void Finish(IXLWorksheet s,int last,int columns)

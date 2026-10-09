@@ -59,13 +59,44 @@ c=Engine.Conflicts(validation,"Noord").First();validation.Decisions.Add(new("Noo
 Check(Engine.Conflicts(validation,"Noord").Count==0&&Engine.Individuals(validation,"Noord").Count==1,"Cross-club merge resolves participant and club");
 var tied=new Competition { Races=Enumerable.Range(0,2).Select(i=>new Race { Name="Tie",Date=DateTime.Today.AddDays(i),Results=[new Result { Category="Jongens U8",Name="A",Rank=1,Points=1 },new Result { Category="Jongens U8",Name="B",Rank=1,Points=1 }] }).ToList() };
 Check(Engine.Individuals(tied,"Noord").All(r=>r.Place==1),"Tied points share placing");
-var mixed=new Competition { Races=Enumerable.Range(0,2).Select(i=>new Race { Name="Mixed",Date=DateTime.Today.AddDays(i),Results=[new Result { Category="Mannen U18",Name="A",Association="NTB",Rank=1,Points=1 },new Result { Category="Mannen U20",Name="B",Association="NTB",Rank=2,Points=2 },new Result { Category="Mannen U20",Name="C",Association="NTB",Rank=3,Points=3 }] }).ToList() };
+var mixed=new Competition { Races=Enumerable.Range(0,2).Select(i=>new Race { Name="Mixed",Date=DateTime.Today.AddDays(i),Results=[new Result { Category="Mannen U18",Name="A",Association="NTB",Rank=1,Points=1,Time="4:00" },new Result { Category="Mannen U20",Name="B",Association="NTB",Rank=2,Points=2,Time="4:10" },new Result { Category="Mannen U20",Name="C",Association="NTB",Rank=3,Points=3,Time="4:20" }] }).ToList() };
 Check(Engine.Teams(mixed,"Noord").Single() is { Category:"Mannen U20/U18",Total:12,Eligible:false,Place:null },"Combined U18/U20 with NTB exclusion");
+var combined=new Competition();
+for(int raceIndex=0;raceIndex<3;raceIndex++)
+{
+ var race=new Race { Name="Combined "+raceIndex,Date=new DateTime(2026,1,1).AddDays(raceIndex) };
+ foreach(var gender in new[]{"Mannen","Vrouwen"})
+ {
+  // Combined places: B1, A1, B2, A2, A3, A4. Club A scores 2+4+5=11;
+  // separate category points would incorrectly score 1+2+2=5.
+  var entrants=new[]{("B1",20,"B",1),("A1",18,"A",1),("B2",20,"B",2),("A2",18,"A",2),("A3",20,"A",3),("A4",18,"A",3)};
+  for(int j=0;j<entrants.Length;j++)
+  {
+   var (name,age,club,rank)=entrants[j];
+   race.Results.Add(new Result { Category=gender+" U"+age,Name=gender+name,Association="Club "+club,Rank=rank,Points=rank,Time=$"{10+raceIndex}:{j*10:00}" });
+  }
+ }
+ combined.Races.Add(race);
+}
+var combinedTeams=Engine.Teams(combined,"Noord");
+Check(combinedTeams.Count==2&&combinedTeams.All(r=>r.Race1==11&&r.Race2==11&&r.Race3==11&&r.Total==22&&r.Bonus==0&&r.Eligible),"Men and women combine U20/U18 by finish time across all clubs, counting best three and best two races without bonus");
+Check(Engine.Results(combined,"Noord").First(r=>r.Row.Name=="MannenA1").Row.Points==1&&Engine.Individuals(combined,"Noord").First(r=>r.Name=="MannenA1").Race1==1,"Combined team points never modify separate individual results");
+var combinedDetails=TeamBreakdown.Create(combined,"Noord",combinedTeams.First());
+Check(combinedDetails.Runners.Take(4).Select(r=>r.Points).SequenceEqual(new[]{2,4,5,6})&&combinedDetails.Runners[3].Status=="Buiten beste drie","Breakdown uses combined places including other clubs and excludes fourth runner");
+var bussumTeam=Engine.Teams(new Competition { Races=[bussum] },"Noord").Single(r=>r.Category=="Mannen U20/U18"&&r.Association=="Atos");
+Check(bussumTeam.Race1==15,"Bussum Atos men: Sven 13:47 = 2, Tijmen 14:02 = 5, Luka 14:46 = 8; combined team score is 15 rather than 8");
+var tiedCombined=new Competition { Races=[new Race { Name="Equal times",Date=DateTime.Today,Results=[new Result {Category="Mannen U20",Name="A",Association="A",Time="1:00:00",Rank=1,Points=1},new Result {Category="Mannen U18",Name="B",Association="B",Time="60:00",Rank=1,Points=1},new Result {Category="Mannen U18",Name="C",Association="C",Time="60:01",Rank=2,Points=2}] }] };
+Check(Engine.TeamResults(tiedCombined,"Noord").Select(x=>x.Row.Points).SequenceEqual(new[]{1,1,3}),"Combined scoring handles hour times and equal finish times with shared placing");
+combined.Races.RemoveAt(2);
+Check(Engine.Teams(combined,"Noord").All(r=>r.Eligible&&r.Total==22),"Two complete team results suffice for classification");
+combined.Races.RemoveAt(1);
+Check(Engine.Teams(combined,"Noord").All(r=>!r.Eligible&&r.Place==null),"One complete team result cannot receive a place");
 var backup=Path.Combine(artifact,"test-backup.json");Storage.Save(data,backup);Storage.Save(data,backup);Check(Storage.Load(backup).Races.Count==3&&File.Exists(backup+".bak"),"Atomic storage and previous backup");
 var invalid=new Competition { Races=data.Races.Append(new Race { Name="Extra",Date=DateTime.Today }).ToList() };try { Storage.Validate(invalid);throw new Exception("Limit failed"); }catch(InvalidDataException){Check(true,"Maximum three races per poule");}
 foreach(var conflict in Engine.Conflicts(small,"Noord")) small.Decisions.Add(new("Noord",conflict.Category,conflict.Left,conflict.Right,false,"","",DateTime.UtcNow));
 var export=Path.Combine(artifact,"test-export.xlsx");ExcelExport.Save(small,"Noord",export);
 using(var book=new XLWorkbook(export)) { Check(book.Worksheets.Select(x=>x.Name).SequenceEqual(new[]{"Uitslagenlijst","Individuele klassement","Ploegen klassement"}),"Excel has exactly three ordered sheets");Check(book.Worksheet(1).Cell(2,5).GetValue<int>()==1&&book.Worksheet(1).Cell(2,8).GetString()=="4:02","Excel preserves rank and time");Check(book.Worksheet(2).Cell(2,10).GetValue<int>()==0,"Excel total matches calculation"); }
+using(var book=new XLWorkbook(export))Check(!book.Worksheet(3).Row(1).CellsUsed().Any(c=>c.GetString()=="Bonus")&&book.Worksheet(3).Cell(2,9).GetValue<int>()==Engine.Teams(small,"Noord").First().Total,"Team Excel omits bonus and keeps correct total");
 
 var legacyPath=Path.Combine(artifact,"legacy.json");
 File.WriteAllText(legacyPath,"""
@@ -122,6 +153,7 @@ if(File.Exists(Path.Combine(artifact,"parity.json")))
   var candidate=JsonSerializer.Deserialize<Competition>(fixture.GetProperty("input").GetRawText(),Storage.Options)!;
   var expected=fixture.GetProperty("individual").EnumerateArray().ToArray(); var actual=Engine.Individuals(candidate,"Noord");
   Check(actual.Count==expected.Length&&actual.Zip(expected).All(pair=>pair.First.Name==pair.Second.GetProperty("name").GetString()&&pair.First.Total==pair.Second.GetProperty("total").GetInt32()&&pair.First.Place==(pair.Second.GetProperty("place").ValueKind==JsonValueKind.Null?null:pair.Second.GetProperty("place").GetInt32())&&pair.First.Qualified==pair.Second.GetProperty("qualified").GetBoolean()),"Individual parity with original Vue: "+fixture.GetProperty("label").GetString());
+  if(candidate.Races.SelectMany(r=>r.Results).Any(r=>r.Category is "Mannen U20" or "Mannen U18" or "Vrouwen U20" or "Vrouwen U18"))continue; // Combined scoring intentionally corrects the original Vue calculation.
   expected=fixture.GetProperty("teams").EnumerateArray().ToArray(); actual=Engine.Teams(candidate,"Noord");
   Check(actual.Count==expected.Length&&actual.Zip(expected).All(pair=>pair.First.Association==pair.Second.GetProperty("association").GetString()&&pair.First.Total==pair.Second.GetProperty("total").GetInt32()&&pair.First.Place==(pair.Second.GetProperty("place").ValueKind==JsonValueKind.Null?null:pair.Second.GetProperty("place").GetInt32())&&pair.First.Qualified==pair.Second.GetProperty("qualified").GetBoolean()),"Team parity with original Vue: "+fixture.GetProperty("label").GetString());
  }
@@ -144,6 +176,7 @@ var thread=new Thread(()=> { try {
  standingCategory.SelectedValue="Jongens U16";
  Check(((DataGrid)window.FindName("StandingGrid")).Items.Count==3,"WPF standings binding for selected category");
  menu.SelectedIndex=5;WaitForLoad(window);Check(standingCategory.SelectedIndex==0&&standingCategory.SelectedValue.ToString()=="Mannen U20/U18","Team filter opens first combined category");
+ Check(((DataGrid)window.FindName("StandingGrid")).Columns.Single(c=>c.Header?.ToString()=="Bonus").Visibility==Visibility.Collapsed,"Team view hides the bonus column");
  var breakdownWindow=new TeamBreakdownWindow(small,"Noord",Engine.Teams(small,"Noord").First());
  Check(((DataGrid)breakdownWindow.FindName("RaceScoresGrid")).Items.Count==3&&((DataGrid)breakdownWindow.FindName("RunnerScoresGrid")).Items.Count==9,"WPF breakdown uses two bound tables");
  Render(breakdownWindow,"team-breakdown-preview.png");breakdownWindow.Close();

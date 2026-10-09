@@ -112,7 +112,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
   ExportPanel.Visibility=CurrentPage==Page.Export?Visibility.Visible:Visibility.Collapsed;
   EditNameButton.Visibility=team?Visibility.Collapsed:Visibility.Visible; BreakdownButton.Visibility=team?Visibility.Visible:Visibility.Collapsed; NameColumn.Visibility=team?Visibility.Collapsed:Visibility.Visible;
   StatusFilterPanel.Visibility=team?Visibility.Collapsed:Visibility.Visible;
-  Rules.Text=(team?"De drie beste lopers per wedstrijd; de twee beste ploeguitslagen tellen. U18/U20 worden gecombineerd. Minimaal twee ploegstarts; NTB is uitgesloten van plaatsing.":"De twee beste uitslagen tellen. Drie starts: 3 bonuspunten bij maximaal 10 deelnemers, anders 5. Minimaal twee starts voor een plaats.")+" Groen = geplaatst voor de finale. W1–W3 staan op datum: "+string.Join("; ",races.Select((r,i)=>$"W{i+1}: {r.Label}"));
+  BonusColumn.Visibility=team?Visibility.Collapsed:Visibility.Visible;
+  Rules.Text=(team?"De drie beste lopers per wedstrijd; de twee beste ploeguitslagen tellen. U18/U20 krijgen per geslacht één gecombineerde uitslag op tijd. Geen bonus. Minimaal twee ploegstarts; NTB is uitgesloten van plaatsing.":"De twee beste uitslagen tellen. Drie starts: 3 bonuspunten bij maximaal 10 deelnemers, anders 5. Minimaal twee starts voor een plaats.")+" Groen = geplaatst voor de finale. W1–W3 staan op datum: "+string.Join("; ",races.Select((r,i)=>$"W{i+1}: {r.Label}"));
   refreshing=false; RefreshTables();
  }
  private void RefreshTables()

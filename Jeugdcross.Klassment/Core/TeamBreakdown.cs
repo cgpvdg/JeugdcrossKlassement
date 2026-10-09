@@ -9,7 +9,7 @@ public static class TeamBreakdown
  public static TeamScoreDetails Create(Competition data, string poule, Standing team)
  {
   var races = Engine.Races(data, poule);
-  var results = Engine.Results(data, poule);
+  var results = Engine.TeamResults(data, poule);
   var bestRaces = Enumerable.Range(0, races.Count).Where(i => team.Scores[i].HasValue)
    .OrderBy(i => team.Scores[i]).ThenBy(i => i).Take(2).ToHashSet();
   var summary = new List<TeamRaceScore>();

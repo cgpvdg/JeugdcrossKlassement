@@ -1,4 +1,4 @@
-param([string]$Version = '1.0.5')
+param([string]$Version = '1.0.6')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $publishDir = Join-Path $projectRoot 'artifacts/publish'
@@ -8,4 +8,3 @@ $compiler = @($env:ISCC_PATH, 'C:/Program Files (x86)/Inno Setup 6/ISCC.exe', 'C
 if (!$compiler) { throw 'Inno Setup 6 ontbreekt. Stel ISCC_PATH in of installeer Inno Setup.' }
 & $compiler "/DMyAppVersion=$Version" (Join-Path $PSScriptRoot 'installer.iss')
 if ($LASTEXITCODE -ne 0) { throw 'Installer bouwen mislukt.' }
-

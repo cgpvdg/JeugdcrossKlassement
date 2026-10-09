@@ -1,6 +1,6 @@
 #define MyAppName "Jeugdcross Klassement"
 #ifndef MyAppVersion
- #define MyAppVersion "1.0.5"
+ #define MyAppVersion "1.0.6"
 #endif
 [Setup]
 AppId={{DDF673F8-3267-45AA-A387-7C4969E87202}
@@ -30,4 +30,3 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\Jeugdcross.Klassment.exe"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\Jeugdcross.Klassment.exe"; Tasks: desktopicon
 [Run]
 Filename: "{app}\Jeugdcross.Klassment.exe"; Description: "Start {#MyAppName}"; Flags: nowait postinstall skipifsilent
-

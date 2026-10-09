@@ -28,7 +28,7 @@ Het individuele klassement heeft naast categorie ook een **Status**-filter. Bij 
 ## Berekening
 
 - Individueel: punten zijn de oorspronkelijke plaats; de twee laagste scores tellen. Bij drie starts wordt 3 punten afgetrokken voor categorieën met maximaal 10 unieke deelnemers, anders 5. Minimaal twee starts zijn nodig voor een plaats. Gelijke totalen delen een plaats.
-- Ploegen: per wedstrijd tellen de drie lopers met de laagste punten. De twee beste ploeguitslagen tellen. U18 en U20 zijn samengevoegd per geslacht; oorspronkelijke categoriepunten blijven behouden. NTB en Nederlandse Triathlon Bond zijn uitgesloten van ploegplaatsing.
+- Ploegen: per wedstrijd tellen de drie lopers met de laagste punten. De twee beste ploeguitslagen tellen. U18 en U20 krijgen uitsluitend voor het ploegenklassement per wedstrijd één gecombineerde rangschikking op tijd, apart voor mannen en vrouwen. De punten zijn de plaatsen in deze gecombineerde uitslag, inclusief deelnemers van andere verenigingen. Gelijke tijden delen een plaats. Individuele categoriepunten blijven behouden. Een ploeg heeft minimaal drie lopers per wedstrijd en twee volledige wedstrijdresultaten nodig voor klassering. Er is geen ploegbonus. NTB en Nederlandse Triathlon Bond zijn uitgesloten van ploegplaatsing.
 - Finale: dezelfde aantallen en gelijke-scoregrenzen als de webapp. De groene finalemarkering verschijnt pas nadat alle drie wedstrijden uitslagen hebben.
 - Naamvergelijking: normalisatie van accenten, hoofdletters en leestekens; Levenshtein-overeenkomst zonder spaties. Drempels: 75% binnen dezelfde vereniging en 88% over verschillende verenigingen. Samenvoegen gebeurt in twee stappen, eerst binnen verenigingen en daarna over verenigingen.
 
@@ -47,6 +47,6 @@ dotnet run --project tests/Jeugdcross.Klassment.Tests -c Release
 
 Voor de vergelijkingstest moeten de bestaande Vue-afhankelijkheden in `JeugdcrossKlassement/node_modules` beschikbaar zijn. De test vergelijkt tien datasets rechtstreeks met de oorspronkelijke Vue-berekeningen en controleert daarnaast de parser, validatie, opslag, Excel en WPF-navigatie. Testbestanden en een venstervoorbeeld staan in `artifacts` en worden niet gecommit.
 
-De installer vereist Inno Setup 6 (`ISCC_PATH` kan de compilerlocatie aangeven). Uitvoer: `artifacts/installer/Jeugdcross.Klassment-Setup-1.0.4.exe`. Dit is een self-contained Windows x64-installatie: .NET hoeft op de doelcomputer niet afzonderlijk geïnstalleerd te worden. De installatie werkt per gebruiker zonder administratorrechten. De installer is niet digitaal ondertekend.
+De installer vereist Inno Setup 6 (`ISCC_PATH` kan de compilerlocatie aangeven). Uitvoer: `artifacts/installer/Jeugdcross.Klassment-Setup-1.0.6.exe`. Dit is een self-contained Windows x64-installatie: .NET hoeft op de doelcomputer niet afzonderlijk geïnstalleerd te worden. De installatie werkt per gebruiker zonder administratorrechten. De installer is niet digitaal ondertekend.
 
 Het icoon combineert een stopwatch en een podium; het wordt reproduceerbaar opgebouwd met `Assets/create-icon.ps1`.
