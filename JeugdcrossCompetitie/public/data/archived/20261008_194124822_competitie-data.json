@@ -1,0 +1,486 @@
+{
+  "generatedAt": "2026-10-06T14:36:26.204Z",
+  "version": 2,
+  "poules": [
+    {
+      "naam": "Noord",
+      "wedstrijden": [],
+      "individueelKlassement": [
+        {
+          "categorie": "Mannen U20",
+          "rows": []
+        },
+        {
+          "categorie": "Mannen U18",
+          "rows": []
+        },
+        {
+          "categorie": "Vrouwen U20",
+          "rows": []
+        },
+        {
+          "categorie": "Vrouwen U18",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U16",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U16",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U14",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U14",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U13",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U13",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U8",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U8",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U9",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U9",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U10",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U10",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U11",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U11",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U12",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U12",
+          "rows": []
+        }
+      ],
+      "ploegenKlassement": [
+        {
+          "categorie": "Mannen U20/U18",
+          "rows": []
+        },
+        {
+          "categorie": "Vrouwen U20/U18",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U16",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U16",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U14",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U14",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U13",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U13",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U8",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U8",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U9",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U9",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U10",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U10",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U11",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U11",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U12",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U12",
+          "rows": []
+        }
+      ]
+    },
+    {
+      "naam": "Midden",
+      "wedstrijden": [],
+      "individueelKlassement": [
+        {
+          "categorie": "Mannen U20",
+          "rows": []
+        },
+        {
+          "categorie": "Mannen U18",
+          "rows": []
+        },
+        {
+          "categorie": "Vrouwen U20",
+          "rows": []
+        },
+        {
+          "categorie": "Vrouwen U18",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U16",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U16",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U14",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U14",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U13",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U13",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U8",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U8",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U9",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U9",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U10",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U10",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U11",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U11",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U12",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U12",
+          "rows": []
+        }
+      ],
+      "ploegenKlassement": [
+        {
+          "categorie": "Mannen U20/U18",
+          "rows": []
+        },
+        {
+          "categorie": "Vrouwen U20/U18",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U16",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U16",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U14",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U14",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U13",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U13",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U8",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U8",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U9",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U9",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U10",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U10",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U11",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U11",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U12",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U12",
+          "rows": []
+        }
+      ]
+    },
+    {
+      "naam": "Zuid",
+      "wedstrijden": [],
+      "individueelKlassement": [
+        {
+          "categorie": "Mannen U20",
+          "rows": []
+        },
+        {
+          "categorie": "Mannen U18",
+          "rows": []
+        },
+        {
+          "categorie": "Vrouwen U20",
+          "rows": []
+        },
+        {
+          "categorie": "Vrouwen U18",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U16",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U16",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U14",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U14",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U13",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U13",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U8",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U8",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U9",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U9",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U10",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U10",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U11",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U11",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U12",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U12",
+          "rows": []
+        }
+      ],
+      "ploegenKlassement": [
+        {
+          "categorie": "Mannen U20/U18",
+          "rows": []
+        },
+        {
+          "categorie": "Vrouwen U20/U18",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U16",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U16",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U14",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U14",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U13",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U13",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U8",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U8",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U9",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U9",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U10",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U10",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U11",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U11",
+          "rows": []
+        },
+        {
+          "categorie": "Jongens U12",
+          "rows": []
+        },
+        {
+          "categorie": "Meisjes U12",
+          "rows": []
+        }
+      ]
+    }
+  ]
+}
