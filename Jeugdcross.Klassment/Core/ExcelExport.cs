@@ -15,6 +15,8 @@ public static class ExcelExport
    results.Cell(row,4).Value=r.CategoryLabel; results.Cell(row,5).Value=r.Rank; results.Cell(row,6).Value=r.Name; results.Cell(row,7).Value=r.Association; results.Cell(row++,8).Value=r.Time;
   }
   Finish(results,row-1,8);
+  CenterNumbers(results,5,5);
+  results.Column(8).Style.Alignment.Horizontal=XLAlignmentHorizontalValues.Right;
   WriteStandings(book.Worksheets.Add("Individuele klassement"),Engine.Individuals(data,poule),false,data,poule);
   WriteStandings(book.Worksheets.Add("Ploegen klassement"),Engine.Teams(data,poule),true,data,poule);
   var temp=path+".tmp";
@@ -35,6 +37,17 @@ public static class ExcelExport
    if(r.Qualified) sheet.Range(i,1,i,team?11:12).Style.Fill.BackgroundColor=XLColor.FromHtml("#DCFCE7"); i++;
   }
   Finish(sheet,i-1,team?11:12);
+  CenterNumbers(sheet,2,2);
+  CenterNumbers(sheet,5,team?9:10);
+  if(team)sheet.Range(1,1,Math.Max(1,i-1),11).Style.Alignment.Vertical=XLAlignmentVerticalValues.Center;
+ }
+ private static void CenterNumbers(IXLWorksheet sheet,int first,int last)
+ {
+  for(int column=first;column<=last;column++)
+  {
+   sheet.Column(column).Width=Math.Max(18,Math.Min(52,sheet.Column(column).Width+4));
+   sheet.Column(column).Style.Alignment.Horizontal=XLAlignmentHorizontalValues.Center;
+  }
  }
  private static void Header(IXLWorksheet s,string[] names) { for(int i=0;i<names.Length;i++) s.Cell(1,i+1).Value=names[i]; }
  private static void Finish(IXLWorksheet s,int last,int columns)

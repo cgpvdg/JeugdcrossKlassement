@@ -68,7 +68,7 @@ public static class Engine
     var row=new Standing { Category=category.Key,CategoryLabel=Categories.Display(data,poule,category.Key),Key=participant.Key,Name=first.Name,Association=first.Association };
     foreach(var entry in participant) row.Scores[races.FindIndex(r=>r.Id==entry.Race.Id)]=entry.Row.Points;
     if(data.NameOverrides.TryGetValue(poule+"::"+category.Key+"::"+row.Key,out var name)) row.Name=name;
-    row.Bonus=row.Starts>=3 ? category.Select(x=>x.Row.Node).Distinct().Count()<=10 ? 3:5 :0;
+    row.Bonus=row.Starts>=data.Configuration.BonusStarts?(category.Select(x=>x.Row.Node).Distinct().Count()<=10?data.Configuration.SmallCategoryBonusPoints:data.Configuration.BonusPoints):0;
     row.Total=row.Scores.Where(x=>x.HasValue).Select(x=>x!.Value).Order().Take(2).Sum()-row.Bonus;
     row.Eligible=row.Starts>=2; rows.Add(row);
    }
@@ -79,7 +79,7 @@ public static class Engine
  public static List<Standing> Teams(Competition data,string poule)
  {
   var races=Races(data,poule); var output=new List<Standing>();
-  foreach(var category in TeamResults(data,poule).GroupBy(x=>Categories.Team(x.Row.Category)))
+  foreach(var category in TeamResults(data,poule).GroupBy(x=>Categories.Team(data,x.Row.Category)))
   {
    var rows=new List<Standing>();
    foreach(var club in category.GroupBy(x=>Parser.Key(x.Row.Association)))
@@ -98,14 +98,14 @@ public static class Engine
    }
    Rank(rows,true); if(!FinalsReady(data,poule)) foreach(var row in rows) row.Qualified=false; output.AddRange(rows);
   }
-  var order=Categories.All.Select(Categories.Team).Distinct().ToArray();
+  var order=Categories.All.Select(c=>Categories.Team(data,c)).Distinct().ToArray();
   return output.OrderBy(x=>Array.IndexOf(order,x.Category)).ToList();
  }
  public static bool FinalsReady(Competition data,string poule) => Races(data,poule).Count==3 && Races(data,poule).All(r=>r.Count>0);
  public static List<(Race Race,Result Row)> TeamResults(Competition data,string poule)
  {
   var results=Resolve(data,poule);
-  foreach(var group in results.Where(x=>x.Row.Category is "Mannen U20" or "Mannen U18" or "Vrouwen U20" or "Vrouwen U18").GroupBy(x=>(x.Race.Id,Category:Categories.Team(x.Row.Category))))
+  foreach(var group in results.Where(x=>data.Configuration.TeamGroups.Any(g=>g.Categories.Contains(x.Row.Category))).GroupBy(x=>(x.Race.Id,Category:Categories.Team(data,x.Row.Category))))
   {
    var ordered=group.Select(x=>(x.Row,Seconds:FinishSeconds(x.Row.Time))).OrderBy(x=>x.Seconds).ThenBy(x=>x.Row.Name).ToList();
    int place=0;int previous=-1;

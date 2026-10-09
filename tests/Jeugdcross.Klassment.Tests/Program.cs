@@ -50,7 +50,37 @@ Check(individual.Count(x=>x.Qualified)==6,"Individual finalist cutoff");
 var teams=Engine.Teams(data,"Noord");Check(teams.Count==2&&teams[0].Total==15&&teams[0].Starts==3,"Three runners per race, two best team scores");
 Check(Engine.Individuals(data,"Midden").Count==0,"Poule isolation");
 var small=new Competition { Races=data.Races.Select(r=>new Race { Name=r.Name,Date=r.Date,Results=r.Results.Take(3).Select(x=>x with {}).ToList() }).ToList() };
-Check(Engine.Individuals(small,"Noord")[0].Bonus==3,"Three-point bonus for small category");
+Check(Engine.Individuals(small,"Noord")[0].Bonus==3,"Default small-category bonus is three points");
+var boundary=new Competition { Races=Enumerable.Range(0,3).Select(i=>new Race {Name="Boundary "+i,Date=new DateTime(2026,1,1).AddDays(i),Results=Enumerable.Range(1,10).Select(j=>new Result {Category="Jongens U14",Name="Boundary runner "+j,Association="Club",Rank=j,Points=j,Time="4:00"}).ToList()}).ToList() };
+Check(Engine.Individuals(boundary,"Noord").All(r=>r.Bonus==3),"Exactly ten unique participants across three races receive the small-category bonus");
+boundary.Races[0].Results.Add(new Result {Category="Jongens U14",Name="Extra runner",Association="Club",Rank=11,Points=11,Time="4:01"});
+Check(Engine.Individuals(boundary,"Noord").Where(r=>r.Starts==3).All(r=>r.Bonus==5)&&Engine.Individuals(boundary,"Noord").Single(r=>r.Starts==1).Bonus==0,"Eleven participants in the poule trigger the regular bonus even if the eleventh has only one finish");
+boundary.Configuration.BonusPoints=8;boundary.Configuration.SmallCategoryBonusPoints=2;
+Check(Engine.Individuals(boundary,"Noord").Where(r=>r.Starts==3).All(r=>r.Bonus==8),"Configured regular bonus applies above ten participants");
+boundary.Races[0].Results.RemoveAt(10);
+Check(Engine.Individuals(boundary,"Noord").All(r=>r.Bonus==2),"Configured small bonus applies independently at ten participants");
+var oldConfiguration=JsonSerializer.Deserialize<Competition>("{\"Configuration\":{\"BonusStarts\":2,\"BonusPoints\":7,\"TeamGroups\":[]}}",Storage.Options)!;
+Check(oldConfiguration.Configuration is {BonusStarts:2,BonusPoints:7,SmallCategoryBonusPoints:3},"Existing configuration retains settings and defaults the new small bonus to three");
+var configurable=JsonSerializer.Deserialize<Competition>(JsonSerializer.Serialize(small,Storage.Options),Storage.Options)!;
+foreach(var threshold in new[]{1,2,3})
+{
+ configurable.Configuration.BonusStarts=threshold;configurable.Configuration.BonusPoints=7;configurable.Configuration.SmallCategoryBonusPoints=7;
+ for(int starts=1;starts<=3;starts++)
+ {
+  var sample=JsonSerializer.Deserialize<Competition>(JsonSerializer.Serialize(configurable,Storage.Options),Storage.Options)!;sample.Races=sample.Races.Take(starts).ToList();
+  Check(Engine.Individuals(sample,"Noord").All(r=>r.Bonus==(starts>=threshold?7:0)), $"Configured bonus starts {threshold}, actual starts {starts}");
+ }
+}
+configurable.Configuration.BonusPoints=0;configurable.Configuration.SmallCategoryBonusPoints=0;
+Check(Engine.Individuals(configurable,"Noord").All(r=>r.Bonus==0),"Zero bonus disables bonus points");
+configurable.Configuration.TeamGroups=[new() { Categories=["Jongens U16","Jongens U14"] }];
+Check(Engine.Teams(configurable,"Noord").All(r=>r.Category==configurable.Configuration.TeamGroups[0].Key),"Custom combined category replaces the default team groups");
+configurable.Configuration.TeamGroups=[];
+Check(Categories.Team(configurable,"Mannen U18")=="Mannen U18"&&Categories.Team(configurable,"Mannen U20")=="Mannen U20","Removing groups keeps categories separate");
+var configPath=Path.Combine(artifact,"configuration-test.json");Storage.Save(configurable,configPath);
+Check(Storage.Load(configPath).Configuration.BonusPoints==0&&Storage.Load(configPath).Configuration.TeamGroups.Count==0,"Configuration persists including intentionally empty groups");
+configurable.Configuration.TeamGroups=[new() {Categories=["Jongens U16","Jongens U14"]},new() {Categories=["Jongens U16","Jongens U13"]}];
+try {Storage.Validate(configurable);throw new Exception("Overlapping groups accepted");}catch(InvalidDataException){Check(true,"Overlapping team groups are rejected");}
 var validation=new Competition { Races=[new Race { Name="A",Date=DateTime.Today,Results=[new Result { Category="Jongens U16",Name="Johan Jansen",Association="AV A",Points=1,Rank=1 },new Result { Category="Jongens U16",Name="Johann Jansen",Association="AV A",Points=2,Rank=2 },new Result { Category="Jongens U16",Name="Johan Jansen",Association="AV B",Points=3,Rank=3 }] }] };
 Check(Engine.Conflicts(validation,"Noord").Any(c=>c.Kind=="Naamvariant")&&Engine.Conflicts(validation,"Noord").Any(c=>c.Kind=="Andere vereniging"),"Same-club and cross-club validation thresholds");
 var c=Engine.Conflicts(validation,"Noord").First(c=>c.Kind=="Naamvariant"); validation.Decisions.Add(new("Noord",c.Category,c.Left,c.Right,true,c.RightName,c.RightAssociation,DateTime.UtcNow));
@@ -190,11 +220,10 @@ var thread=new Thread(()=> { try {
  Check(conflictsGrid.Items.Count>0&&conflictsGrid.Items.Cast<Conflict>().All(c=>c.Kind=="Andere vereniging")&&conflictsGrid.SelectedItems.Count==0,"Kind filter restricts checks and clears hidden selections");
  kindFilter.SelectedIndex=0;
  Render(window,"name-controls-preview.png");
- var importButton=(Wpf.Ui.Controls.Button)window.FindName("ImportResultsButton");Check(importButton.Content.ToString()=="Uitslagen.nl importeren"&&importButton.HorizontalAlignment==HorizontalAlignment.Right,"Import button renamed and aligned right");
+ var importButton=(Button)window.FindName("ImportResultsButton");Check(importButton.Content.ToString()=="Uitslagen.nl importeren"&&((WrapPanel)importButton.Parent).Children[0]==importButton,"Import button is first on the left with standard button styling");
  menu.SelectedIndex=1;WaitForLoad(window);
  Check(((ListBoxItem)menu.Items[1]).Content.ToString()=="Categorieën"&&((DataGrid)window.FindName("CategoryMappingGrid")).Items.Count==3,"Categories navigation lists imported mappings per race");
  var mappingGrid=(DataGrid)window.FindName("CategoryMappingGrid");mappingGrid.SelectedIndex=0;
- Check(((DataGrid)window.FindName("CategoryResultsGrid")).Items.Count==13,"Selecting category shows all its imported result rows");
  ((TextBox)window.FindName("CategoryDisplayName")).Text="Junioren test";
  ((Button)window.FindName("SaveCategoryButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));WaitForLoad(window);
  Check(Storage.Load(uiDataPath).CategoryNames["Noord::Jongens U16"]=="Junioren test"&&((CategoryMappingRow)mappingGrid.Items[0]).Name=="Junioren test","Category editor saves display name and refreshes mapping table");
@@ -230,7 +259,7 @@ var thread=new Thread(()=> { try {
  var bitmap=new RenderTargetBitmap(1320,806,96,96,PixelFormats.Pbgra32);bitmap.Render(root);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using var stream=File.Create(Path.Combine(artifact,"wpf-preview.png"));encoder.Save(stream);
  typeof(MainWindow).GetField("data",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(window,new Competition { Races=[supplied] });
  menu.SelectedIndex=1;WaitForLoad(window);
- Check(mappingGrid.Items.Count==2&&mappingGrid.Items.Cast<CategoryMappingRow>().All(r=>r.OriginalHeaderAvailable)&&((DataGrid)window.FindName("CategoryResultsGrid")).Items.Count==12,"Categories screen displays actual imported headers and their linked participants");
+ Check(mappingGrid.Items.Count==2&&mappingGrid.Items.Cast<CategoryMappingRow>().All(r=>r.OriginalHeaderAvailable),"Categories screen displays actual imported category headers");
  var categoryRaceFilter=(ComboBox)window.FindName("CategoryRaceFilter");
  var secondRace=Parser.Parse(suppliedText,_=>throw new Exception("Unexpected mapping"));
  typeof(MainWindow).GetField("data",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(window,new Competition { Races=[supplied,secondRace] });
@@ -239,7 +268,20 @@ var thread=new Thread(()=> { try {
  Check(mappingGrid.Items.Count==2&&mappingGrid.Items.Cast<CategoryMappingRow>().All(r=>r.RaceId==secondRace.Id),"Category race filter displays only the selected race");
  categoryRaceFilter.SelectedValue="";
  Check(mappingGrid.Items.Count==4,"All races filter restores all category mappings");
- Render(window,"categories-import-preview.png");window.Close();
+ Render(window,"categories-import-preview.png");
+ typeof(MainWindow).GetField("data",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(window,small);
+ ((ListBox)window.FindName("ConfigurationMenu")).SelectedIndex=0;WaitForLoad(window);
+ Check(((Grid)window.FindName("ConfigurationPanel")).Visibility==Visibility.Visible&&menu.SelectedIndex==-1,"Configuration opens independently above poule navigation");
+ ((ComboBox)window.FindName("BonusStartsInput")).SelectedItem=2;((TextBox)window.FindName("BonusPointsInput")).Text="7";((TextBox)window.FindName("SmallCategoryBonusPointsInput")).Text="4";
+ var groupList=(ListBox)window.FindName("TeamGroupsList");groupList.SelectedIndex=0;
+ var groupCategories=(ListBox)window.FindName("TeamGroupCategories");groupCategories.SelectedItems.Remove("Mannen U20");groupCategories.SelectedItems.Add("Jongens U16");
+ typeof(MainWindow).GetMethod("SaveConfiguration",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(window,new object[]{window,new RoutedEventArgs()});WaitForLoad(window);
+ var configuredSaved=Storage.Load(uiDataPath);
+ Check(configuredSaved.Configuration.BonusStarts==2&&configuredSaved.Configuration.BonusPoints==7&&configuredSaved.Configuration.SmallCategoryBonusPoints==4&&Engine.Individuals(configuredSaved,"Noord").All(r=>r.Bonus==4)&&Engine.Teams(configuredSaved,"Noord").All(r=>r.Category==configuredSaved.Configuration.TeamGroups[0].Key),"Configuration UI saves bonus and group edits and recomputes standings");
+ Render(window,"configuration-preview.png");
+ menu.SelectedIndex=5;WaitForLoad(window);
+ Check(((ListBox)window.FindName("ConfigurationMenu")).SelectedIndex==-1&&standingCategory.Items.Cast<CategoryOption>().Any(c=>c.Key==configuredSaved.Configuration.TeamGroups[0].Key),"Team navigation shows updated combined category filter");
+ window.Close();
  } catch(Exception ex) { failure=ex; } });thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure!=null)throw failure;
 Console.WriteLine("All checks passed.");
 void Render(Window window,string name)

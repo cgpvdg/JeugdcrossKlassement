@@ -1,18 +1,18 @@
-<ui:FluentWindow x:Class="Jeugdcross.Klassment.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" Title="Jeugdcross · Klassement" Width="1320" Height="850" MinWidth="1000" MinHeight="650" WindowStartupLocation="CenterScreen" Icon="Assets/app.ico" Background="#F5F7F8">
+<ui:FluentWindow x:Class="Jeugdcross.Klassment.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" Title="Jeugdcrosscompetitie regio 1 t/m 5" Width="1320" Height="850" MinWidth="1000" MinHeight="650" WindowStartupLocation="CenterScreen" Icon="Assets/app.ico" Background="#F5F7F8">
  <Grid Background="#F5F7F8"><Grid.RowDefinitions><RowDefinition Height="44"/><RowDefinition/></Grid.RowDefinitions>
-  <ui:TitleBar Title="Jeugdcross · Klassement" ShowMinimize="True" ShowMaximize="True"/>
+  <ui:TitleBar Title="Jeugdcrosscompetitie regio 1 t/m 5" ShowMinimize="True" ShowMaximize="True"/>
   <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="240"/><ColumnDefinition/></Grid.ColumnDefinitions>
    <Border Background="#E9F0F2" Padding="20"><DockPanel>
     <StackPanel DockPanel.Dock="Top">
-     <ui:SymbolIcon Symbol="Trophy24" FontSize="36" Foreground="#087E8B" HorizontalAlignment="Left" Margin="0,12,0,12"/>
-     <TextBlock Text="JEUGDCROSS" FontSize="22" FontWeight="Bold" Foreground="#153C46"/><TextBlock Text="Uitslagen en klassementen" Margin="0,4,0,32"/>
+     <TextBlock Text="Jeugdcrosscompetitie regio 1 t/m 5" FontSize="18" FontWeight="Bold" Foreground="#153C46" TextWrapping="Wrap" Margin="0,12,0,32"/>
+     <ListBox x:Name="ConfigurationMenu" Background="Transparent" BorderThickness="0" SelectionChanged="ConfigurationSelected" Margin="0,0,0,16"><ListBoxItem Content="Configuratie" Padding="12"/></ListBox>
      <TextBlock Text="POULE" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
      <ComboBox x:Name="PouleBox" SelectionChanged="PouleChanged" Margin="0,0,0,24"/>
      <ListBox x:Name="Menu" SelectionChanged="MenuChanged" BorderThickness="0" Background="Transparent" SelectedIndex="0">
       <ListBoxItem Content="Wedstrijden" Padding="12"/><ListBoxItem Content="Categorieën" Padding="12"/><ListBoxItem Content="Naamcontroles" Padding="12"/><ListBoxItem Content="Uitslagenlijst" Padding="12"/><ListBoxItem Content="Individueel klassement" Padding="12"/><ListBoxItem Content="Ploegenklassement" Padding="12"/><ListBoxItem Content="Exporteren" Padding="12"/>
      </ListBox>
     </StackPanel>
-    <StackPanel VerticalAlignment="Bottom"><TextBlock Text="Lokaal opgeslagen" FontWeight="SemiBold"/><TextBlock Text="Wijzigingen worden automatisch bewaard." TextWrapping="Wrap" FontSize="12" Margin="0,6,0,4"/></StackPanel>
+    <TextBlock Text="C.G.P. Software" VerticalAlignment="Bottom" FontWeight="SemiBold"/>
    </DockPanel></Border>
    <Grid x:Name="ContentArea" Grid.Column="1" Margin="32,20,32,20"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/></Grid.RowDefinitions>
     <TextBlock x:Name="Heading" FontSize="30" FontWeight="SemiBold" Foreground="#153C46"/>
@@ -20,11 +20,11 @@
     <Border Grid.Row="2" Background="#E1EEF1" CornerRadius="6" Padding="12" Margin="0,0,0,16"><TextBlock x:Name="Notice" TextWrapping="Wrap" Text="Kies een poule en importeer het eerste uitslagenbestand."/></Border>
     <Grid Grid.Row="3">
      <Grid x:Name="RacePanel"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/></Grid.RowDefinitions>
-      <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><WrapPanel Margin="0,0,12,0"><Button Content="Wedstrijd bewerken" Click="EditRace"/><Button Content="Wedstrijd verwijderen" Click="DeleteRace"/><Button Content="Schoon beginnen" Click="StartClean" Background="#C62828" Foreground="White"/></WrapPanel><ui:Button Grid.Column="1" x:Name="ImportResultsButton" Content="Uitslagen.nl importeren" Appearance="Primary" Click="ImportTxt" HorizontalAlignment="Right" Margin="0,0,0,8"/></Grid>
+      <WrapPanel><Button x:Name="ImportResultsButton" Content="Uitslagen.nl importeren" Click="ImportTxt"/><Button Content="Wedstrijd bewerken" Click="EditRace"/><Button Content="Wedstrijd verwijderen" Click="DeleteRace"/><Button Content="Schoon beginnen" Click="StartClean" Background="#C62828" Foreground="White"/></WrapPanel>
       <TextBlock Grid.Row="1" Text="Importeer maximaal drie wedstrijden per poule. Een import met dezelfde datum vervangt de bestaande uitslag na bevestiging." TextWrapping="Wrap" Margin="0,6,0,20"/>
       <DataGrid x:Name="RaceGrid" Grid.Row="2"><DataGrid.Columns><DataGridTextColumn Header="Datum" Binding="{Binding Date,StringFormat=dd-MM-yyyy}" Width="130"/><DataGridTextColumn Header="Wedstrijd" Binding="{Binding Name}" Width="*"/><DataGridTextColumn Header="Vereniging / plaats" Binding="{Binding Association}" Width="230"/><DataGridTextColumn Header="Uitslagen" Binding="{Binding Count}" Width="100"/></DataGrid.Columns></DataGrid>
      </Grid>
-     <Grid x:Name="CategoriesPanel" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+     <Grid x:Name="CategoriesPanel" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
       <StackPanel><TextBlock Text="Selecteer een geïmporteerde categorie om de koppeling en naam aan te passen. De naam geldt voor deze categorie in de hele poule; de koppeling geldt voor de geselecteerde wedstrijd." TextWrapping="Wrap" Margin="0,0,0,12"/><StackPanel Orientation="Horizontal" Margin="0,0,0,16"><TextBlock Text="Wedstrijd" VerticalAlignment="Center" Margin="0,0,12,0"/><ComboBox x:Name="CategoryRaceFilter" DisplayMemberPath="Name" SelectedValuePath="Key" Width="400" SelectionChanged="CategoryRaceChanged"/></StackPanel></StackPanel>
       <DataGrid x:Name="CategoryMappingGrid" Grid.Row="1" SelectionMode="Single" SelectionChanged="CategoryMappingSelected"><DataGrid.Columns>
        <DataGridTextColumn Header="Wedstrijd" Binding="{Binding Race}" Width="*" MinWidth="190"/>
@@ -36,10 +36,8 @@
       <StackPanel Grid.Row="2" Margin="0,16,0,12"><TextBlock x:Name="CategorySourceNote" TextWrapping="Wrap" Margin="0,0,0,8"/><WrapPanel>
        <StackPanel Margin="0,0,16,8"><TextBlock Text="Koppelen aan" Margin="0,0,0,6"/><ComboBox x:Name="CategoryTarget" Width="230" DisplayMemberPath="Name" SelectedValuePath="Key" SelectionChanged="CategoryTargetChanged" IsEnabled="False"/></StackPanel>
        <StackPanel Margin="0,0,16,8"><TextBlock Text="Naam in applicatie" Margin="0,0,0,6"/><TextBox x:Name="CategoryDisplayName" Width="240" MaxLength="100" IsEnabled="False"/></StackPanel>
-       <ui:Button x:Name="SaveCategoryButton" Content="Opslaan en opnieuw berekenen" Appearance="Primary" Click="SaveCategory" IsEnabled="False" VerticalAlignment="Bottom"/>
+       <Button x:Name="SaveCategoryButton" Content="Opslaan en opnieuw berekenen" Click="SaveCategory" IsEnabled="False" VerticalAlignment="Bottom" Margin="0,0,0,8" Height="36" Padding="16,6"/>
       </WrapPanel></StackPanel>
-      <TextBlock Grid.Row="3" Text="Uitslagen bij de geselecteerde importcategorie" FontWeight="SemiBold" Margin="0,0,0,8"/>
-      <DataGrid x:Name="CategoryResultsGrid" Grid.Row="4"><DataGrid.Columns><DataGridTextColumn Header="Plaats" Binding="{Binding Rank}" Width="70"/><DataGridTextColumn Header="Deelnemer" Binding="{Binding Name}" Width="*"/><DataGridTextColumn Header="Vereniging" Binding="{Binding Association}" Width="230"/><DataGridTextColumn Header="Tijd" Binding="{Binding Time}" Width="90"/></DataGrid.Columns></DataGrid>
      </Grid>
      <Grid x:Name="ConflictPanel" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/></Grid.RowDefinitions>
       <WrapPanel><Button x:Name="OptionAButton" Content="Optie A" Click="SameA" IsEnabled="False"/><Button x:Name="OptionBButton" Content="Optie B" Click="SameB" IsEnabled="False"/><Button x:Name="DifferentButton" Content="Verschillend" Click="Different" IsEnabled="False"/><TextBlock x:Name="ConflictSelectionCount" VerticalAlignment="Center" Margin="4,0,20,8"/><Button Content="Keuzes bekijken / herstellen" Click="ReviewDecisions"/><TextBlock Text="Soort" VerticalAlignment="Center" Margin="8,0,8,8"/><ComboBox x:Name="ConflictKindFilter" Width="180" SelectionChanged="ConflictKindChanged" Margin="0,0,0,8"/></WrapPanel>
@@ -55,17 +53,25 @@
       <WrapPanel Margin="0,0,0,18"><TextBlock Text="Wedstrijd" VerticalAlignment="Center" Margin="0,0,12,8"/><ComboBox x:Name="ResultRace" DisplayMemberPath="Label" Width="310" SelectionChanged="FilterChanged" Margin="0,0,20,8"/><TextBlock Text="Categorie" VerticalAlignment="Center" Margin="0,0,12,8"/><ComboBox x:Name="ResultCategory" DisplayMemberPath="Name" SelectedValuePath="Key" Width="240" SelectionChanged="FilterChanged" Margin="0,0,0,8"/></WrapPanel>
       <DataGrid x:Name="ResultsGrid" Grid.Row="1"><DataGrid.Columns><DataGridTextColumn Header="Plaats" Binding="{Binding Rank}" Width="80"/><DataGridTextColumn Header="Deelnemer" Binding="{Binding Name}" Width="*"/><DataGridTextColumn Header="Vereniging" Binding="{Binding Association}" Width="230"/><DataGridTextColumn Header="Tijd" Binding="{Binding Time}" Width="100"/></DataGrid.Columns></DataGrid>
      </Grid>
-     <Grid x:Name="StandingPanel" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/></Grid.RowDefinitions>
+     <Grid x:Name="StandingPanel" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/></Grid.RowDefinitions>
       <WrapPanel><ComboBox x:Name="StandingCategory" DisplayMemberPath="Name" SelectedValuePath="Key" Width="250" SelectionChanged="FilterChanged" Margin="0,0,16,8"/><StackPanel x:Name="StatusFilterPanel" Orientation="Horizontal"><TextBlock Text="Status" VerticalAlignment="Center" Margin="0,0,8,8"/><ComboBox x:Name="StandingStatusFilter" Width="230" SelectionChanged="FilterChanged" Margin="0,0,16,8"/></StackPanel><Button x:Name="EditNameButton" Content="Weergavenaam wijzigen" Click="EditName"/><Button x:Name="BreakdownButton" Content="Puntopbouw bekijken" Click="ShowBreakdown"/></WrapPanel>
-      <TextBlock x:Name="Rules" Grid.Row="1" TextWrapping="Wrap" Margin="0,8,0,18"/>
-      <DataGrid x:Name="StandingGrid" Grid.Row="2" Sorting="StandingSorting"><DataGrid.RowStyle><Style TargetType="DataGridRow"><Style.Triggers><DataTrigger Binding="{Binding Qualified}" Value="True"><Setter Property="Background" Value="#DCFCE7"/></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle><DataGrid.Columns>
+      <DataGrid x:Name="StandingGrid" Grid.Row="1" Sorting="StandingSorting"><DataGrid.RowStyle><Style TargetType="DataGridRow"><Style.Triggers><DataTrigger Binding="{Binding Qualified}" Value="True"><Setter Property="Background" Value="#DCFCE7"/></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle><DataGrid.Columns>
        <DataGridTextColumn Header="Categorie" Binding="{Binding CategoryLabel}" Width="145"/><DataGridTextColumn Header="Plaats" Binding="{Binding Place}" SortMemberPath="Place" Width="60"/><DataGridTextColumn x:Name="NameColumn" Header="Deelnemer" Binding="{Binding Name}" Width="*" MinWidth="180"/><DataGridTextColumn Header="Vereniging" Binding="{Binding Association}" Width="165"/>
        <DataGridTextColumn Header="W1" Binding="{Binding Race1}" SortMemberPath="Race1" Width="50"/><DataGridTextColumn Header="W2" Binding="{Binding Race2}" SortMemberPath="Race2" Width="50"/><DataGridTextColumn Header="W3" Binding="{Binding Race3}" SortMemberPath="Race3" Width="50"/><DataGridTextColumn x:Name="BonusColumn" Header="Bonus" Binding="{Binding Bonus}" Width="65"/><DataGridTextColumn Header="Totaal" Binding="{Binding Total}" Width="65"/><DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="160"/>
       </DataGrid.Columns></DataGrid>
      </Grid>
+          <Grid x:Name="ConfigurationPanel" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+      <TextBlock Text="Deze instellingen gelden voor alle poules. De bonus geldt uitsluitend voor het individuele klassement. De categoriegrootte is het aantal unieke deelnemers in het eindklassement van de poule." TextWrapping="Wrap" Margin="0,0,0,16"/>
+      <WrapPanel Grid.Row="1" Margin="0,0,0,16"><StackPanel Margin="0,0,24,0"><TextBlock Text="Bonus vanaf aantal deelnames" Margin="0,0,0,6"/><ComboBox x:Name="BonusStartsInput" Width="230"/></StackPanel><StackPanel Margin="0,0,24,0"><TextBlock Text="Bonus bij meer dan 10 deelnemers" Margin="0,0,0,6"/><TextBox x:Name="BonusPointsInput" Width="230"/></StackPanel><StackPanel><TextBlock Text="Bonus bij maximaal 10 deelnemers" Margin="0,0,0,6"/><TextBox x:Name="SmallCategoryBonusPointsInput" Width="230"/></StackPanel></WrapPanel>
+      <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+       <DockPanel Margin="0,0,24,16"><TextBlock DockPanel.Dock="Top" Text="Samengevoegde ploegcategorieën" FontWeight="SemiBold" Margin="0,0,0,8"/><WrapPanel DockPanel.Dock="Bottom"><Button Content="Nieuwe groep" Click="NewTeamGroup"/><Button Content="Groep verwijderen" Click="RemoveTeamGroup"/></WrapPanel><ListBox x:Name="TeamGroupsList" DisplayMemberPath="Name" SelectionChanged="TeamGroupSelected"/></DockPanel>
+       <DockPanel Grid.Column="1" Margin="0,0,0,16"><TextBlock DockPanel.Dock="Top" Text="Categorieën in de geselecteerde groep" FontWeight="SemiBold" Margin="0,0,0,8"/><TextBlock DockPanel.Dock="Top" Text="Selecteer minimaal twee categorieën. Categorieën zonder groep blijven afzonderlijk." TextWrapping="Wrap" Margin="0,0,0,8"/><ListBox x:Name="TeamGroupCategories" SelectionMode="Multiple" SelectionChanged="TeamGroupCategoriesChanged"/></DockPanel>
+      </Grid>
+      <Button Grid.Row="3" Content="Opslaan en opnieuw berekenen" Click="SaveConfiguration" HorizontalAlignment="Left"/>
+     </Grid>
      <StackPanel x:Name="ExportPanel" Visibility="Collapsed">
       <TextBlock Text="Excel-export per poule" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"/><TextBlock Text="Drie tabbladen: uitslagenlijst, individueel klassement en ploegenklassement. Rond de naamcontroles af voordat je exporteert." TextWrapping="Wrap" Margin="0,0,0,16"/>
-      <ui:Button Content="Geselecteerde poule exporteren naar Excel" Appearance="Primary" HorizontalAlignment="Left" Click="ExportExcel"/>
+      <Button Content="Geselecteerde poule exporteren naar Excel" HorizontalAlignment="Left" Click="ExportExcel"/>
      </StackPanel>
     </Grid>
    </Grid>
@@ -73,4 +79,3 @@
   </Grid>
  </Grid>
 </ui:FluentWindow>
-

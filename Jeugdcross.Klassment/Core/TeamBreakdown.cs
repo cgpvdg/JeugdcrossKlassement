@@ -17,7 +17,7 @@ public static class TeamBreakdown
   for (int i = 0; i < races.Count; i++)
   {
    var race = races[i];
-   var entries = results.Where(x => x.Race.Id == race.Id && Categories.Team(x.Row.Category) == team.Category && Parser.Key(x.Row.Association) == team.Key)
+   var entries = results.Where(x => x.Race.Id == race.Id && Categories.Team(data,x.Row.Category) == team.Category && Parser.Key(x.Row.Association) == team.Key)
     .OrderBy(x => x.Row.Points).ThenBy(x => x.Row.Name).Select(x => x.Row).ToList();
    string label = $"W{i + 1} · {race.Label}";
    summary.Add(new(label, team.Scores[i], entries.Count,

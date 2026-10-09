@@ -13,8 +13,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
  private PageData? pageData;
  private string? standingSortMember;
  private ListSortDirection standingSortDirection;
- private enum Page { Races,Categories,NameChecks,Results,Individuals,Teams,Export }
- private Page CurrentPage => (Page)Menu.SelectedIndex;
+ private enum Page { Races,Categories,NameChecks,Results,Individuals,Teams,Export,Configuration }
+ private Page CurrentPage => ConfigurationMenu.SelectedIndex>=0?Page.Configuration:(Page)Menu.SelectedIndex;
+ private List<TeamCategoryGroup> editingGroups=[];
+ private bool editingConfiguration;
  private readonly string dataFilePath;
  private record PageData(Competition Source,string Poule,List<Race> Races,List<Conflict> Conflicts,List<(Race Race,Result Row)> Results,List<Standing> Individuals,List<Standing> Teams);
  private string Poule => PouleBox.SelectedItem as string ?? "Noord";
@@ -36,7 +38,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
  }
  private Competition Clone() => System.Text.Json.JsonSerializer.Deserialize<Competition>(System.Text.Json.JsonSerializer.Serialize(data,Storage.Options),Storage.Options)!;
  private async void PouleChanged(object sender,SelectionChangedEventArgs e) { if(ready) await RefreshAsync(); }
- private async void MenuChanged(object sender,SelectionChangedEventArgs e) { if(ready) await RefreshAsync(true); }
+ private async void MenuChanged(object sender,SelectionChangedEventArgs e) { if(ready&&Menu.SelectedIndex>=0) { ConfigurationMenu.SelectedIndex=-1;await RefreshAsync(true); } }
+ private async void ConfigurationSelected(object sender,SelectionChangedEventArgs e) { if(ready&&ConfigurationMenu.SelectedIndex>=0) { Menu.SelectedIndex=-1;await RefreshAsync(); } }
  private void FilterChanged(object sender,SelectionChangedEventArgs e) { if(ready&&!refreshing) RefreshTables(); }
  private void Refresh()
  {
@@ -83,7 +86,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
   pageData=loaded;
   refreshing=true;
   var races=loaded.Races; var conflicts=loaded.Conflicts;
-  Heading.Text=((ListBoxItem)Menu.SelectedItem).Content.ToString();
+  Heading.Text=CurrentPage==Page.Configuration?"Configuratie":((ListBoxItem)Menu.SelectedItem).Content.ToString();
   Summary.Text=$"Poule {Poule} · {races.Count}/3 wedstrijden · {races.Sum(r=>r.Count)} uitslagen · {conflicts.Count} openstaande naamcontroles";
   Notice.Text=conflicts.Count>0 ? "Controleer de mogelijke dubbele deelnemers. Klassementen zijn voorlopig zolang controles openstaan." : races.Count==0 ? "Begin met het importeren van een TXT-bestand van uitslagen.nl." : "Alle naamcontroles zijn afgerond. Je kunt de uitslagen bekijken en exporteren.";
   RaceGrid.ItemsSource=races; RefreshConflictFilter();
@@ -110,10 +113,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
   ResultsPanel.Visibility=CurrentPage==Page.Results?Visibility.Visible:Visibility.Collapsed;
   StandingPanel.Visibility=CurrentPage is Page.Individuals or Page.Teams?Visibility.Visible:Visibility.Collapsed;
   ExportPanel.Visibility=CurrentPage==Page.Export?Visibility.Visible:Visibility.Collapsed;
+  ConfigurationPanel.Visibility=CurrentPage==Page.Configuration?Visibility.Visible:Visibility.Collapsed;
+  if(CurrentPage==Page.Configuration)LoadConfiguration();
   EditNameButton.Visibility=team?Visibility.Collapsed:Visibility.Visible; BreakdownButton.Visibility=team?Visibility.Visible:Visibility.Collapsed; NameColumn.Visibility=team?Visibility.Collapsed:Visibility.Visible;
   StatusFilterPanel.Visibility=team?Visibility.Collapsed:Visibility.Visible;
   BonusColumn.Visibility=team?Visibility.Collapsed:Visibility.Visible;
-  Rules.Text=(team?"De drie beste lopers per wedstrijd; de twee beste ploeguitslagen tellen. U18/U20 krijgen per geslacht één gecombineerde uitslag op tijd. Geen bonus. Minimaal twee ploegstarts; NTB is uitgesloten van plaatsing.":"De twee beste uitslagen tellen. Drie starts: 3 bonuspunten bij maximaal 10 deelnemers, anders 5. Minimaal twee starts voor een plaats.")+" Groen = geplaatst voor de finale. W1–W3 staan op datum: "+string.Join("; ",races.Select((r,i)=>$"W{i+1}: {r.Label}"));
   refreshing=false; RefreshTables();
  }
  private void RefreshTables()
@@ -129,7 +133,44 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
  }
  private void ConflictKindChanged(object sender,SelectionChangedEventArgs e) { if(ready&&!refreshing) RefreshConflictFilter(); }
  private static CategoryOption[] CategoryOptions(Competition source,string poule,bool team=false) =>
-  (team?Categories.All.Select(Categories.Team).Distinct():Categories.All).Select(key=>new CategoryOption(key,Categories.Display(source,poule,key))).ToArray();
+  (team?Categories.All.Select(c=>Categories.Team(source,c)).Distinct():Categories.All).Select(key=>new CategoryOption(key,Categories.Display(source,poule,key))).ToArray();
+ private void LoadConfiguration()
+ {
+  editingConfiguration=true;
+  BonusStartsInput.ItemsSource=new[]{1,2,3};BonusStartsInput.SelectedItem=data.Configuration.BonusStarts;BonusPointsInput.Text=data.Configuration.BonusPoints.ToString();
+  SmallCategoryBonusPointsInput.Text=data.Configuration.SmallCategoryBonusPoints.ToString();
+  editingGroups=data.Configuration.TeamGroups.Select(g=>new TeamCategoryGroup { Categories=g.Categories.ToList() }).ToList();
+  TeamGroupCategories.ItemsSource=Categories.All;TeamGroupsList.ItemsSource=editingGroups;
+  editingConfiguration=false;TeamGroupsList.SelectedIndex=editingGroups.Count>0?0:-1;ShowTeamGroup();
+ }
+ private void ShowTeamGroup()
+ {
+  editingConfiguration=true;TeamGroupCategories.SelectedItems.Clear();
+  TeamGroupCategories.IsEnabled=TeamGroupsList.SelectedItem is TeamCategoryGroup;
+  if(TeamGroupsList.SelectedItem is TeamCategoryGroup group)foreach(var category in group.Categories)TeamGroupCategories.SelectedItems.Add(category);
+  editingConfiguration=false;
+ }
+ private void TeamGroupSelected(object sender,SelectionChangedEventArgs e) { if(ready&&!editingConfiguration)ShowTeamGroup(); }
+ private void TeamGroupCategoriesChanged(object sender,SelectionChangedEventArgs e)
+ {
+  if(editingConfiguration||TeamGroupsList.SelectedItem is not TeamCategoryGroup group)return;
+  group.Categories=TeamGroupCategories.SelectedItems.Cast<string>().OrderBy(c=>Array.IndexOf(Categories.All,c)).ToList();TeamGroupsList.Items.Refresh();
+ }
+ private void NewTeamGroup(object sender,RoutedEventArgs e) { var group=new TeamCategoryGroup();editingGroups.Add(group);TeamGroupsList.Items.Refresh();TeamGroupsList.SelectedItem=group; }
+ private void RemoveTeamGroup(object sender,RoutedEventArgs e) { if(TeamGroupsList.SelectedItem is TeamCategoryGroup group)editingGroups.Remove(group);TeamGroupsList.Items.Refresh();TeamGroupsList.SelectedIndex=editingGroups.Count>0?0:-1;ShowTeamGroup(); }
+ private async void SaveConfiguration(object sender,RoutedEventArgs e)
+ {
+  Competition? next=null;
+  Run(()=>
+  {
+   if(!int.TryParse(BonusPointsInput.Text,out var points)||points<0)throw new InvalidDataException("Vul een niet-negatief geheel aantal bonuspunten in.");
+   if(!int.TryParse(SmallCategoryBonusPointsInput.Text,out var smallPoints)||smallPoints<0)throw new InvalidDataException("Vul een niet-negatief geheel aantal bonuspunten voor kleine categorieën in.");
+   var candidate=Clone();candidate.Configuration=new CompetitionConfiguration { BonusStarts=(int)BonusStartsInput.SelectedItem,BonusPoints=points,SmallCategoryBonusPoints=smallPoints,TeamGroups=editingGroups.Select(g=>new TeamCategoryGroup { Categories=g.Categories.ToList() }).ToList() };
+   Storage.Validate(candidate);foreach(var poule in Categories.Poules) { Engine.Individuals(candidate,poule);Engine.Teams(candidate,poule); }
+   Storage.Save(candidate,dataFilePath);data=next=candidate;
+  });
+  if(next!=null)await RefreshAsync(false,"Configuratie opgeslagen. Alle klassementen zijn opnieuw berekend.");
+ }
  private void CategoryMappingSelected(object sender,SelectionChangedEventArgs e) { if(ready&&!refreshing) ShowSelectedCategory(); }
  private List<CategoryMappingRow> FilteredCategoryMappings() => pageData==null?[]:CategoryManagement.Rows(pageData.Source,pageData.Poule).Where(r=>string.IsNullOrEmpty(CategoryRaceFilter.SelectedValue as string)||r.RaceId==(string)CategoryRaceFilter.SelectedValue).ToList();
  private void CategoryRaceChanged(object sender,SelectionChangedEventArgs e)
@@ -146,7 +187,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
   CategoryTarget.SelectedValue=mapping?.Target;
   CategoryDisplayName.Text=mapping?.Name??"";
   CategorySourceNote.Text=mapping==null?"Selecteer een geïmporteerde categorie.":$"{mapping.Source} · {mapping.SourceNote}";
-  CategoryResultsGrid.ItemsSource=mapping==null?null:pageData?.Source.Races.Single(r=>r.Id==mapping.RaceId).Results.Where(r=>CategoryManagement.Source(r)==mapping.Source).OrderBy(r=>r.Rank).ToList();
  }
  private void CategoryTargetChanged(object sender,SelectionChangedEventArgs e)
  {
