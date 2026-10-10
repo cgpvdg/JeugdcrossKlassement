@@ -19,7 +19,7 @@ public static class TeamBreakdown
    var race = races[i];
    var entries = results.Where(x => x.Race.Id == race.Id && Categories.Team(data,x.Row.Category) == team.Category && Parser.Key(x.Row.Association) == team.Key)
     .OrderBy(x => x.Row.Points).ThenBy(x => x.Row.Name).Select(x => x.Row).ToList();
-   string label = $"W{i + 1} · {race.Label}";
+   string label = race.Label;
    summary.Add(new(label, team.Scores[i], entries.Count,
     !team.Scores[i].HasValue ? "Minder dan 3 lopers" : bestRaces.Contains(i) ? "Telt mee in totaal" : "Niet in beste twee"));
    for (int j = 0; j < entries.Count; j++)

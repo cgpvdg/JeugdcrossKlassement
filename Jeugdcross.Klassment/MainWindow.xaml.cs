@@ -13,8 +13,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
  private PageData? pageData;
  private string? standingSortMember;
  private ListSortDirection standingSortDirection;
- private enum Page { Races,Categories,NameChecks,Results,Individuals,Teams,Export,Configuration }
- private Page CurrentPage => ConfigurationMenu.SelectedIndex>=0?Page.Configuration:(Page)Menu.SelectedIndex;
+ private enum Page { Races,Categories,NameChecks,Results,Individuals,Teams,Export,Configuration,Rules }
+ private Page CurrentPage => ConfigurationMenu.SelectedIndex==1?Page.Rules:ConfigurationMenu.SelectedIndex==0?Page.Configuration:(Page)Menu.SelectedIndex;
  private List<TeamCategoryGroup> editingGroups=[];
  private bool editingConfiguration;
  private readonly string dataFilePath;
@@ -86,7 +86,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
   pageData=loaded;
   refreshing=true;
   var races=loaded.Races; var conflicts=loaded.Conflicts;
-  Heading.Text=CurrentPage==Page.Configuration?"Configuratie":((ListBoxItem)Menu.SelectedItem).Content.ToString();
+  var raceColumns=new[]{Race1Column,Race2Column,Race3Column};for(int i=0;i<raceColumns.Length;i++)raceColumns[i].Header=i<races.Count?races[i].Date.ToString("dd-MM-yyyy"):$"Wedstrijd {i+1}";
+  Heading.Text=CurrentPage==Page.Configuration?"Configuratie":CurrentPage==Page.Rules?"Reglement":((ListBoxItem)Menu.SelectedItem).Content.ToString();
   Summary.Text=$"Poule {Poule} · {races.Count}/3 wedstrijden · {races.Sum(r=>r.Count)} uitslagen · {conflicts.Count} openstaande naamcontroles";
   Notice.Text=conflicts.Count>0 ? "Controleer de mogelijke dubbele deelnemers. Klassementen zijn voorlopig zolang controles openstaan." : races.Count==0 ? "Begin met het importeren van een TXT-bestand van uitslagen.nl." : "Alle naamcontroles zijn afgerond. Je kunt de uitslagen bekijken en exporteren.";
   RaceGrid.ItemsSource=races; RefreshConflictFilter();
@@ -115,7 +116,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
   ExportPanel.Visibility=CurrentPage==Page.Export?Visibility.Visible:Visibility.Collapsed;
   ConfigurationPanel.Visibility=CurrentPage==Page.Configuration?Visibility.Visible:Visibility.Collapsed;
   if(CurrentPage==Page.Configuration)LoadConfiguration();
-  EditNameButton.Visibility=team?Visibility.Collapsed:Visibility.Visible; BreakdownButton.Visibility=team?Visibility.Visible:Visibility.Collapsed; NameColumn.Visibility=team?Visibility.Collapsed:Visibility.Visible;
+  RulesPanel.Visibility=CurrentPage==Page.Rules?Visibility.Visible:Visibility.Collapsed;
+  if(CurrentPage==Page.Rules)ShowRules();
+  EditNameButton.Visibility=team?Visibility.Collapsed:Visibility.Visible; TeamBreakdownColumn.Visibility=team?Visibility.Visible:Visibility.Collapsed; NameColumn.Visibility=team?Visibility.Collapsed:Visibility.Visible;
   StatusFilterPanel.Visibility=team?Visibility.Collapsed:Visibility.Visible;
   BonusColumn.Visibility=team?Visibility.Collapsed:Visibility.Visible;
   refreshing=false; RefreshTables();
@@ -134,6 +137,24 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
  private void ConflictKindChanged(object sender,SelectionChangedEventArgs e) { if(ready&&!refreshing) RefreshConflictFilter(); }
  private static CategoryOption[] CategoryOptions(Competition source,string poule,bool team=false) =>
   (team?Categories.All.Select(c=>Categories.Team(source,c)).Distinct():Categories.All).Select(key=>new CategoryOption(key,Categories.Display(source,poule,key))).ToArray();
+ private void ShowRules()
+ {
+  RulesContent.Children.Clear();
+  void Section(string title,params string[] items)
+  {
+   RulesContent.Children.Add(new TextBlock {Text=title,FontSize=20,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,10)});
+   foreach(var text in items)RulesContent.Children.Add(new TextBlock {Text="• "+text,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)});
+   RulesContent.Children.Add(new Border {Height=16});
+  }
+  var config=data.Configuration;
+  Section("Algemeen","Dit overzicht beschrijft de puntentelling zoals de applicatie die toepast, met de huidige opgeslagen configuratie.","Er zijn drie poules: Noord, Midden en Zuid. Iedere poule heeft maximaal drie voorrondewedstrijden.","Klassementen worden per poule en categorie berekend. Een lager puntentotaal is beter.","De wedstrijden staan op datum. Een ontbrekende uitslag levert geen punten of deelname op; een deelnemer met onvoldoende deelnames krijgt geen plaats.");
+  Section("Individueel klassement","De plaats in de geïmporteerde categorie-uitslag is het aantal punten voor die wedstrijd: plaats 1 geeft 1 punt, plaats 2 geeft 2 punten, enzovoort.","De twee beste (laagste) wedstrijdscores worden opgeteld. Bij één deelname wordt alleen die score getoond.","Voor klassering zijn minimaal twee gefinishte voorrondewedstrijden nodig.","Een eventuele bonus wordt afgetrokken van het puntentotaal. Het totaal kan daardoor negatief zijn.","Gelijke puntentotalen krijgen dezelfde plaats; de volgende plaats wordt overgeslagen, bijvoorbeeld 1, 1, 3.");
+  Section("Bonus voor deelnemers",$"Huidige instelling: een deelnemer krijgt een bonus vanaf {config.BonusStarts} gefinishte wedstrijd(en). De reglementaire standaard is alle drie de voorrondewedstrijden.",$"Bij meer dan 10 unieke deelnemers in het categorieklassement van de poule: {config.BonusPoints} punten aftrek (standaard 5).",$"Bij maximaal 10 unieke deelnemers: {config.SmallCategoryBonusPoints} punten aftrek (standaard 3).","De categoriegrootte telt unieke deelnemers over alle wedstrijden, na verwerking van naamcontroles, ook als zij slechts één wedstrijd hebben gefinisht.","De bonus wordt één keer afgetrokken, niet per wedstrijd. De deelnamedrempel en beide bonusbedragen zijn aanpasbaar via Configuratie.");
+  Section("Ploegenklassement","Per categorie en vereniging tellen per wedstrijd de drie hoogst geklasseerde deelnemers: de drie laagste puntenscores worden opgeteld.","Met minder dan drie lopers in een wedstrijd ontstaat geen ploegscore voor die wedstrijd.","Voor klassering moet een ploeg in minimaal twee voorrondewedstrijden een geldige ploegscore hebben.","De twee beste (laagste) ploeguitslagen worden opgeteld voor de eindklassering. Er is geen ploegbonus.","NTB en Nederlandse Triathlon Bond worden uitgesloten van ploegplaatsing.","Gelijke ploegtotalen krijgen dezelfde plaats.");
+  Section("Samengestelde ploegcategorieën","Alle deelnemers van de samengevoegde categorieën worden per wedstrijd samen gerangschikt op finishtijd, over alle verenigingen. Hun plaats in deze gecombineerde uitslag bepaalt de ploegpunten.","Gelijke tijden delen een plaats; de volgende plaats wordt overgeslagen.","Daarna worden per vereniging de drie laagste ploegpunten opgeteld. De afzonderlijke individuele uitslagen en punten blijven behouden.","Standaard zijn mannen U20/U18 en vrouwen U20/U18 samengevoegd. De groepen zijn aanpasbaar via Configuratie; categorieën zonder groep blijven afzonderlijk.","Huidige groepen: "+(config.TeamGroups.Count==0?"geen samengestelde groepen.":string.Join("; ",config.TeamGroups.Select(g=>Categories.Display(data,Poule,g.Key)))+"."));
+  Section("Plaatsing voor de finale","Alleen deelnemers en ploegen met voldoende deelnames komen in aanmerking. De groene finalemarkering verschijnt pas als alle drie de wedstrijden van de poule uitslagen bevatten.","Individueel, per categorie: bij 1–3 geklasseerde deelnemers gaan allen door; bij 4 gaan er 3 door; bij 5–6 gaan er 4 door; vanaf 7 gaat de helft door, naar boven afgerond.","Ploegen, per categorie: bij 1 geklasseerde ploeg gaat er 1 door; bij 2–3 gaan er 2 door; bij 4 gaan er 3 door; bij 5–6 gaan er 4 door; bij 7–8 gaan er 5 door; bij 9–10 gaan er 6 door; vanaf 11 gaan er 7 door.","Bij gelijke punten op de grens gaan alle deelnemers of ploegen met datzelfde puntentotaal door.");
+  Section("Naamcontroles en categorieën","Mogelijke dubbele deelnemers worden gecontroleerd binnen verenigingen en tussen verschillende verenigingen. Optie A of B voegt de deelnemers samen met de gekozen naam en vereniging; Verschillend houdt hen apart.","Categorieën kunnen opnieuw worden gekoppeld aan geïmporteerde uitslagen. Na opgeslagen wijzigingen worden deelnemers en klassementen opnieuw berekend.","Openstaande naamcontroles maken klassementen voorlopig en blokkeren de Excel-export.");
+ }
  private void LoadConfiguration()
  {
   editingConfiguration=true;
@@ -278,6 +299,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
  }
  private void ReviewDecisions(object s,RoutedEventArgs e)=>Run(()=> { var choice=Dialogs.Decision(this,data.Decisions.Where(d=>d.Poule==Poule).ToList(),category=>Categories.Display(data,Poule,category)); if(choice==null)return; var next=Clone(); next.Decisions.Remove(choice); Commit(next,"Keuze hersteld; de naamcontrole is opnieuw beschikbaar."); });
  private void EditName(object s,RoutedEventArgs e)=>Run(()=> { if(StandingGrid.SelectedItem is not Standing r) { Notice.Text="Selecteer eerst een deelnemer.";return; } var name=Dialogs.Text(this,"Weergavenaam",r.Name,"Een lege waarde herstelt de oorspronkelijke naam."); if(name==null)return; var next=Clone(); var key=Poule+"::"+r.Category+"::"+r.Key; if(string.IsNullOrWhiteSpace(name))next.NameOverrides.Remove(key);else next.NameOverrides[key]=name.Trim(); Commit(next,"Weergavenaam opgeslagen."); });
- private void ShowBreakdown(object s,RoutedEventArgs e) { if(StandingGrid.SelectedItem is Standing r) Dialogs.TeamBreakdown(this,data,Poule,r);else Notice.Text="Selecteer eerst een ploeg."; }
+ private void ShowBreakdown(object s,RoutedEventArgs e) { if((s as FrameworkElement)?.DataContext is Standing r) Dialogs.TeamBreakdown(this,data,Poule,r);else Notice.Text="Selecteer eerst een ploeg."; }
  private void ExportExcel(object s,RoutedEventArgs e)=>Run(()=> { if(Engine.Races(data,Poule).Count==0)throw new InvalidOperationException("Importeer eerst een wedstrijd."); if(Engine.Conflicts(data,Poule).Count>0)throw new InvalidOperationException("Rond eerst de naamcontroles af."); var dialog=new SaveFileDialog { Filter="Excel werkmap (*.xlsx)|*.xlsx",FileName=$"Jeugdcross-{Poule}.xlsx" }; if(dialog.ShowDialog()!=true)return; ExcelExport.Save(data,Poule,dialog.FileName); Notice.Text="Excel-export opgeslagen: "+dialog.FileName; });
 }

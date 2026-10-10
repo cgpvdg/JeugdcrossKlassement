@@ -208,7 +208,11 @@ var thread=new Thread(()=> { try {
  menu.SelectedIndex=5;WaitForLoad(window);Check(standingCategory.SelectedIndex==0&&standingCategory.SelectedValue.ToString()=="Mannen U20/U18","Team filter opens first combined category");
  Check(((DataGrid)window.FindName("StandingGrid")).Columns.Single(c=>c.Header?.ToString()=="Bonus").Visibility==Visibility.Collapsed,"Team view hides the bonus column");
  var breakdownWindow=new TeamBreakdownWindow(small,"Noord",Engine.Teams(small,"Noord").First());
- Check(((DataGrid)breakdownWindow.FindName("RaceScoresGrid")).Items.Count==3&&((DataGrid)breakdownWindow.FindName("RunnerScoresGrid")).Items.Count==9,"WPF breakdown uses two bound tables");
+ var raceScoresGrid=(DataGrid)breakdownWindow.FindName("RaceScoresGrid");var runnerScoresGrid=(DataGrid)breakdownWindow.FindName("RunnerScoresGrid");
+ Check(raceScoresGrid.Items.Count==3&&runnerScoresGrid.Items.Count==0,"Breakdown starts without any runners until a race is selected");
+ raceScoresGrid.SelectedIndex=0;Check(runnerScoresGrid.Items.Count==3&&runnerScoresGrid.Items.Cast<TeamRunnerScore>().All(r=>r.Race==((TeamRaceScore)raceScoresGrid.SelectedItem).Race),"Selecting a race displays only its runners");
+ raceScoresGrid.SelectedIndex=1;Check(runnerScoresGrid.Items.Count==3&&runnerScoresGrid.Items.Cast<TeamRunnerScore>().All(r=>r.Race==((TeamRaceScore)raceScoresGrid.SelectedItem).Race),"Changing race updates runners");
+ raceScoresGrid.SelectedIndex=-1;Check(runnerScoresGrid.Items.Count==0,"Clearing race selection empties runners");raceScoresGrid.SelectedIndex=0;
  Render(breakdownWindow,"team-breakdown-preview.png");breakdownWindow.Close();
  var filterData=JsonSerializer.Deserialize<Competition>(JsonSerializer.Serialize(data,Storage.Options),Storage.Options)!;
  filterData.Races[0].Results.Add(filterData.Races[0].Results[0] with { Association="AV C" });

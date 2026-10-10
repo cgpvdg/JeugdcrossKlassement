@@ -1,9 +1,11 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using Jeugdcross.Klassment.Core;
 namespace Jeugdcross.Klassment;
 internal static class Dialogs
 {
+ private record DecisionRow(Decision Decision,string Category,string OptionA,string OptionB,string Choice,string Name,string Association,DateTime UpdatedAt);
  public static void TeamBreakdown(Window owner, Competition data, string poule, Standing team)
  {
   new TeamBreakdownWindow(data,poule,team) { Owner=owner }.ShowDialog();
@@ -29,8 +31,12 @@ internal static class Dialogs
  public static Decision? Decision(Window owner,List<Decision> decisions,Func<string,string>? categoryName=null)
  {
   Decision? value=null;var panel=new StackPanel();panel.Children.Add(new TextBlock { Text="Selecteer een keuze om deze ongedaan te maken.",Margin=new Thickness(0,0,0,16) });
-  var box=new ListBox { MaxHeight=350,ItemsSource=decisions.Select(d=>new { Decision=d,Label=$"{categoryName?.Invoke(d.Category)??d.Category}: {d.Left} ↔ {d.Right} · {(d.Same?"dezelfde":"verschillend")}" }),DisplayMemberPath="Label" };panel.Children.Add(box);
-  Window? w=null;w=Window(owner,"Validatiekeuze herstellen",panel,()=> { if(box.SelectedIndex<0)return;value=decisions[box.SelectedIndex];w!.DialogResult=true; });w.ShowDialog();return value;
+  string Participant(string node)=>string.Join(" · ",node.Split("::",StringSplitOptions.None));
+  var box=new DataGrid { Height=350,AutoGenerateColumns=false,IsReadOnly=true,CanUserAddRows=false,SelectionMode=DataGridSelectionMode.Single,SelectionUnit=DataGridSelectionUnit.FullRow,ItemsSource=decisions.Select(d=>new DecisionRow(d,categoryName?.Invoke(d.Category)??d.Category,Participant(d.Left),Participant(d.Right),d.Same?"Dezelfde deelnemer":"Verschillend",d.Same?d.Name:"",d.Same?d.Association:"",d.UpdatedAt)).ToList() };
+  void Column(string header,string property,double width,string? format=null)=>box.Columns.Add(new DataGridTextColumn { Header=header,Binding=new Binding(property) { StringFormat=format },Width=new DataGridLength(width),ElementStyle=(Style)Application.Current.FindResource("CenteredTableText") });
+  Column("Categorie","Category",150);Column("Optie A · deelnemer / vereniging","OptionA",220);Column("Optie B · deelnemer / vereniging","OptionB",220);Column("Keuze","Choice",145);Column("Gekozen naam","Name",160);Column("Vereniging","Association",150);Column("Opgeslagen op","UpdatedAt",145,"dd-MM-yyyy HH:mm");
+  panel.Children.Add(box);
+  Window? w=null;w=Window(owner,"Validatiekeuze herstellen",panel,()=> { if(box.SelectedItem is not DecisionRow selected)return;value=selected.Decision;w!.DialogResult=true; });w.Width=1100;w.ShowDialog();return value;
  }
  public static bool EditRace(Window owner,Race race)
  {

@@ -26,7 +26,7 @@ public static class ExcelExport
  private static void WriteStandings(IXLWorksheet sheet,List<Standing> standings,bool team,Competition data,string poule)
  {
   var races=Engine.Races(data,poule);
-  Header(sheet,["Categorie","Plaats",team?"Ploeg":"Deelnemer","Vereniging",..Enumerable.Range(0,3).Select(i=>i<races.Count?$"W{i+1} · {races[i].Label}":$"Wedstrijd {i+1}"),"Starts",..(team?Array.Empty<string>():new[]{"Bonus"}),"Totaal","Status","Puntopbouw"]);
+  Header(sheet,["Categorie","Plaats",team?"Ploeg":"Deelnemer","Vereniging",..Enumerable.Range(0,3).Select(i=>i<races.Count?races[i].Date.ToString("dd-MM-yyyy"):$"Wedstrijd {i+1}"),"Starts",..(team?Array.Empty<string>():new[]{"Bonus"}),"Totaal","Status","Puntopbouw"]);
   int i=2;
   foreach(var r in standings)
   {
