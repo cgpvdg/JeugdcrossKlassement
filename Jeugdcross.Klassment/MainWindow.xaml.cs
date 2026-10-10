@@ -25,6 +25,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
  {
   this.dataFilePath=dataFilePath;
   InitializeComponent(); PouleBox.ItemsSource=Categories.Poules; PouleBox.SelectedIndex=0;
+  var shellIcon=Path.Combine(AppContext.BaseDirectory,"Icons","app-"+typeof(MainWindow).Assembly.GetName().Version!.ToString(3)+".ico");
+  if(File.Exists(shellIcon))Icon=System.Windows.Media.Imaging.BitmapFrame.Create(new Uri(shellIcon));
   ConflictKindFilter.ItemsSource=new[]{"Alle soorten","Naamvariant","Andere vereniging"}; ConflictKindFilter.SelectedIndex=0;
   StandingStatusFilter.ItemsSource=new[]{"Alle statussen","Finalist","Geklasseerd","Onvoldoende starts / uitgesloten"}; StandingStatusFilter.SelectedIndex=0;
   if(File.Exists(dataFilePath)) try { data=Storage.Load(dataFilePath); } catch(Exception ex) { MessageBox.Show("Gegevens konden niet worden geladen. Het bestand blijft behouden. Sluit de applicatie en herstel de automatische .bak-kopie van:\n"+dataFilePath+"\n\n"+ex.Message,"Gegevens laden",MessageBoxButton.OK,MessageBoxImage.Error); dataLoadFailed=true; }

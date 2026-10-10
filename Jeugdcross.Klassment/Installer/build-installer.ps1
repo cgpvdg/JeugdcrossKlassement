@@ -1,9 +1,12 @@
-param([string]$Version = '1.0.15')
+param([string]$Version = '1.0.16')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $publishDir = Join-Path $projectRoot 'artifacts/publish'
 dotnet publish (Join-Path $projectRoot 'Jeugdcross.Klassment.csproj') -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false "-p:Version=$Version" -o $publishDir
 if ($LASTEXITCODE -ne 0) { throw 'Publiceren mislukt.' }
+$shellIconsDir = Join-Path $publishDir 'Icons'
+New-Item -ItemType Directory -Path $shellIconsDir -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $projectRoot 'Assets/app.ico') -Destination (Join-Path $shellIconsDir "app-$Version.ico") -Force
 foreach ($legacyFile in @('Jeugdcross.Klassment.exe', 'Jeugdcross.Klassment.dll', 'Jeugdcross.Klassment.pdb', 'Jeugdcross.Klassment.deps.json', 'Jeugdcross.Klassment.runtimeconfig.json')) {
  $legacyPath = Join-Path $publishDir $legacyFile
  if (Test-Path -LiteralPath $legacyPath) { Remove-Item -LiteralPath $legacyPath }

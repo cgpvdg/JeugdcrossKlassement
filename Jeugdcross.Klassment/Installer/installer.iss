@@ -1,6 +1,6 @@
 #define MyAppName "Jeugdcrosscompetitie"
 #ifndef MyAppVersion
- #define MyAppVersion "1.0.15"
+ #define MyAppVersion "1.0.16"
 #endif
 [Setup]
 AppId={{DDF673F8-3267-45AA-A387-7C4969E87202}
@@ -17,7 +17,7 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 SetupIconFile=..\Assets\app.ico
-UninstallDisplayIcon={app}\Jeugdcrosscompetitie.exe
+UninstallDisplayIcon={app}\Icons\app-{#MyAppVersion}.ico
 DisableProgramGroupPage=yes
 [Languages]
 Name: "dutch"; MessagesFile: "compiler:Languages\Dutch.isl"
@@ -26,8 +26,8 @@ Name: "desktopicon"; Description: "Snelkoppeling op bureaublad"; Flags: unchecke
 [Files]
 Source: "..\artifacts\publish\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\Jeugdcrosscompetitie.exe"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\Jeugdcrosscompetitie.exe"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\Jeugdcrosscompetitie.exe"; IconFilename: "{app}\Icons\app-{#MyAppVersion}.ico"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\Jeugdcrosscompetitie.exe"; IconFilename: "{app}\Icons\app-{#MyAppVersion}.ico"; Check: ShouldUpdateDesktopIcon
 [InstallDelete]
 Type: files; Name: "{app}\Jeugdcross.Klassment.exe"
 Type: files; Name: "{app}\Jeugdcross.Klassment.dll"
@@ -38,3 +38,43 @@ Type: files; Name: "{autoprograms}\Jeugdcross Klassement.lnk"
 Type: files; Name: "{autodesktop}\Jeugdcross Klassement.lnk"
 [Run]
 Filename: "{app}\Jeugdcrosscompetitie.exe"; Description: "Start {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+procedure SHChangeNotify(EventId: Integer; Flags: Cardinal; Item1, Item2: Integer);
+ external 'SHChangeNotify@shell32.dll stdcall';
+
+function ShouldUpdateDesktopIcon: Boolean;
+begin
+ Result := WizardIsTaskSelected('desktopicon') or
+   FileExists(ExpandConstant('{autodesktop}\{#MyAppName}.lnk'));
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+ FindRec: TFindRec;
+ PinnedFolder, Target, LinkPath: String;
+ Shell, Link: Variant;
+begin
+ if CurStep <> ssPostInstall then Exit;
+ { Update only existing pinned shortcuts pointing to this installed application. }
+ PinnedFolder := ExpandConstant('{userappdata}\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\');
+ if FindFirst(PinnedFolder + '*.lnk', FindRec) then begin
+  try
+   Shell := CreateOleObject('WScript.Shell');
+   repeat
+    try
+     LinkPath := PinnedFolder + FindRec.Name;
+     Link := Shell.CreateShortcut(LinkPath);
+     Target := Link.TargetPath;
+     if CompareText(Target, ExpandConstant('{app}\Jeugdcrosscompetitie.exe')) = 0 then begin
+      Link.IconLocation := ExpandConstant('{app}\Icons\app-{#MyAppVersion}.ico,0');
+      Link.Save;
+     end;
+    except
+     Log('Pinned shortcut icon could not be refreshed: ' + FindRec.Name);
+    end;
+   until not FindNext(FindRec);
+  finally FindClose(FindRec); end;
+ end;
+ SHChangeNotify($08000000, 0, 0, 0);
+end;
