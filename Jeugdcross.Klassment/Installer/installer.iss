@@ -1,6 +1,6 @@
 #define MyAppName "Jeugdcrosscompetitie"
 #ifndef MyAppVersion
- #define MyAppVersion "1.0.16"
+ #define MyAppVersion "1.1.0"
 #endif
 [Setup]
 AppId={{DDF673F8-3267-45AA-A387-7C4969E87202}

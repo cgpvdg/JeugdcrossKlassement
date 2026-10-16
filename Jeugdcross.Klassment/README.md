@@ -47,6 +47,6 @@ dotnet run --project tests/Jeugdcross.Klassment.Tests -c Release
 
 Voor de vergelijkingstest moeten de bestaande Vue-afhankelijkheden in `JeugdcrossKlassement/node_modules` beschikbaar zijn. De test vergelijkt tien datasets rechtstreeks met de oorspronkelijke Vue-berekeningen en controleert daarnaast de parser, validatie, opslag, Excel en WPF-navigatie. Testbestanden en een venstervoorbeeld staan in `artifacts` en worden niet gecommit.
 
-De installer vereist Inno Setup 6 (`ISCC_PATH` kan de compilerlocatie aangeven). Uitvoer: `artifacts/installer/Jeugdcross.Klassment-Setup-1.0.11.exe`. Dit is een self-contained Windows x64-installatie: .NET hoeft op de doelcomputer niet afzonderlijk geïnstalleerd te worden. De installatie werkt per gebruiker zonder administratorrechten. De installer is niet digitaal ondertekend.
+De installer vereist Inno Setup 6 (`ISCC_PATH` kan de compilerlocatie aangeven). Uitvoer: `artifacts/installer/Jeugdcrosscompetitie-Setup-1.1.0.exe`. Dit is een self-contained Windows x64-installatie: .NET hoeft op de doelcomputer niet afzonderlijk geïnstalleerd te worden. De installatie werkt per gebruiker zonder administratorrechten. De installer is niet digitaal ondertekend.
 
 Het icoon combineert een stopwatch en een podium; het wordt reproduceerbaar opgebouwd met `Assets/create-icon.ps1`.
